@@ -1,319 +1,274 @@
-// SafeScan flow: intent -> scan -> result -> amount -> confirm -> hand-off to the user's UPI app -> save shop.
-// Every step follows the profile: spoken, hold-to-pay, tremor keypad, icon + word warnings, pointers.
+// Daily flow: open → scan → hear who it is and give the amount → hold to pay → the user's UPI app opens.
+// Also the "add a shop" flow: scan a regular shop's QR once, name it, save its account.
 
 import * as store from './store.js';
-import { parseUpiQr, buildUpiLink } from './upi.js';
-import { checkPayment, checkAmount, pauseSeconds, LEVEL, STATUS } from './safety.js';
-import { parseIntent, wordsToNumber, findShop } from './match.js';
+import { parseUpiQr, buildUpiLink, appLink, PAY_APPS } from './upi.js';
+import { checkPayment, checkAmount, pauseSeconds, combine, LEVEL, STATUS } from './safety.js';
+import { wordsToNumber } from './match.js';
 import { rupeesInWords, formatRupees } from './amount.js';
 import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, canListen, BUZZ, vibrate, speak } from './speech.js';
 import { DEMO_QRS } from './demo-codes.js';
-import { route, go, render, on, esc, tr, P, announce, alertUser, setCleanup, screenHeader, wireHeader, readScreen, resetHistory } from './ui.js';
+import { route, go, goHome, render, on, esc, tr, P, announce, alertUser, setCleanup, readScreen } from './ui.js';
 
-let flow = {};
+const ICON = { ok: '✓', caution: '!', danger: '✕' };
+const BUZZ_FOR = { ok: BUZZ.ok, caution: BUZZ.caution, danger: BUZZ.danger };
+const money = (n) => formatRupees(n);
+const appName = () => (P().payApp === 'any' ? tr('any_app') : PAY_APPS[P().payApp].label);
 
-const ICON = { [LEVEL.OK]: '✓', [LEVEL.CAUTION]: '!', [LEVEL.DANGER]: '✕' };
-const BUZZ_FOR = { [LEVEL.OK]: BUZZ.ok, [LEVEL.CAUTION]: BUZZ.caution, [LEVEL.DANGER]: BUZZ.danger };
-
-function money(n) { return formatRupees(n); }
-
-function findingText(f) {
-  const v = { ...(f.vars || {}) };
-  for (const k of ['qr', 'planned', 'usual']) if (typeof v[k] === 'number') v[k] = money(v[k]);
-  return tr(`f_${f.code}`, v);
+// ---------- Scanner view (shared by paying and adding a shop) ----------
+function scannerHtml(intro) {
+  return `
+    <div class="viewfinder"><video id="video" aria-hidden="true"></video><div class="reticle" aria-hidden="true"></div></div>
+    <div class="meter" role="meter" aria-label="QR" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="meter"></span></div>
+    <p class="readable muted">${esc(intro)}</p>
+    <p id="cam-error" class="warn" hidden>${esc(tr('camera_error'))}</p>
+    <details class="dev" id="dev">
+      <summary>${esc(tr('test_mode'))}</summary>
+      <div class="stack tight">${DEMO_QRS.map((d, i) => `<button class="btn small" data-demo="${i}">${esc(d.label)}</button>`).join('')}</div>
+      <label for="qrtext">${esc(tr('paste_qr'))}</label>
+      <textarea id="qrtext" class="field" rows="2" placeholder="upi://pay?pa=...&pn=..."></textarea>
+      <button class="btn small" id="usetext">${esc(tr('next'))}</button>
+    </details>`;
 }
 
-// ---------- 1. Intent: who and how much ----------
-route('pay', (preset = {}) => {
-  flow = { intendedShop: preset.shop || '', intendedAmount: preset.amount ?? null };
-  const shops = store.get().savedShops;
-  render(`
-    <section class="screen">
-      ${screenHeader(tr('intent_shop'))}
-      ${shops.length ? `<div class="row wrap">${shops.map((s, i) => `<button class="btn chip" data-shop="${i}">${esc(s.name)}</button>`).join('')}</div>` : ''}
-      <label for="shop">${esc(tr('shop_name_label'))}</label>
-      <input id="shop" class="field" autocomplete="off" value="${esc(flow.intendedShop)}" placeholder="Lakshmi Bakery">
-      <label for="amt">${esc(tr('intent_amount'))} <small>(${esc(tr('optional'))})</small></label>
-      <input id="amt" class="field" inputmode="decimal" autocomplete="off" value="${flow.intendedAmount ?? ''}" placeholder="250">
-      ${canListen ? `<button class="btn big" id="say"><span class="icon" aria-hidden="true">🎤</span>${esc(tr('speak'))}</button><p class="hint">${esc(tr('intent_hint'))}</p>` : ''}
-      <button class="btn big primary" id="next" data-next>${esc(tr('next'))}</button>
-    </section>`, { title: tr('pay_safely') });
-  wireHeader();
-  announce(`${tr('intent_shop')} ${canListen ? tr('intent_hint') : ''}`);
-
-  const shopEl = document.getElementById('shop');
-  const amtEl = document.getElementById('amt');
-  on('[data-shop]', 'click', (e) => {
-    const s = shops[Number(e.currentTarget.dataset.shop)];
-    shopEl.value = s.name;
-    amtEl.focus();
-    announce(s.name);
-  });
-  on('#say', 'click', async () => {
-    announce(tr('listening'));
-    // Shop names on UPI accounts are usually English, so capture in English; numbers work either way.
-    const heard = await listenOnce({ lang: 'en' });
-    if (!heard) return;
-    const { shop, amount } = parseIntent(heard);
-    if (shop) shopEl.value = shop;
-    if (amount) amtEl.value = String(amount);
-    announce([shop, amount ? money(amount) : ''].filter(Boolean).join(', '));
-  });
-  const next = () => {
-    flow.intendedShop = shopEl.value.trim();
-    const a = Number(String(amtEl.value).replace(/[^\d.]/g, ''));
-    flow.intendedAmount = a > 0 ? a : null;
-    go('scan');
-  };
-  on('#next', 'click', next);
-  amtEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') next(); });
-});
-
-// ---------- 2. Scan ----------
-route('scan', () => {
-  render(`
-    <section class="screen">
-      ${screenHeader(tr('pay_safely'))}
-      <p class="readable">${esc(tr('point_camera'))}</p>
-      <div class="viewfinder"><video id="video" aria-hidden="true"></video><div class="reticle" aria-hidden="true"></div></div>
-      <div class="meter" role="meter" aria-label="QR" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="meter"></span></div>
-      <p id="cam-error" class="warn" hidden>${esc(tr('camera_error'))}</p>
-      <details class="dev" id="dev">
-        <summary>${esc(tr('test_mode'))}</summary>
-        <div class="stack">${DEMO_QRS.map((d, i) => `<button class="btn" data-demo="${i}">${esc(d.label)}</button>`).join('')}</div>
-        <label for="qrtext">${esc(tr('paste_qr'))}</label>
-        <textarea id="qrtext" class="field" rows="2" placeholder="upi://pay?pa=...&pn=..."></textarea>
-        <button class="btn" id="usetext">${esc(tr('next'))}</button>
-      </details>
-    </section>`, { title: tr('pay_safely') });
-  wireHeader();
-  announce(tr('point_camera'));
-
+function wireScanner(onQr) {
   const meter = document.getElementById('meter');
   let stop = null;
+  let done = false;
+  const once = (text) => { if (!done) { done = true; stop?.(); onQr(text); } };
   startScanner(document.getElementById('video'), {
-    guidance: P().voice || P().needs.vision,
+    guidance: P().voice || P().contrast,
     onGuidance: (s) => { meter.style.width = `${Math.round(s * 100)}%`; meter.parentElement.setAttribute('aria-valuenow', String(Math.round(s * 100))); },
-    onResult: (text) => handleQr(text),
-  }).then((s) => { stop = s; }).catch(() => {
+    onResult: once,
+  }).then((s) => { stop = s; if (done) s(); }).catch(() => {
     document.getElementById('cam-error').hidden = false;
     document.getElementById('dev').open = true;
-    announce(tr('camera_error'));
   });
   setCleanup(() => stop?.());
-  on('[data-demo]', 'click', (e) => handleQr(DEMO_QRS[Number(e.currentTarget.dataset.demo)].text));
-  on('#usetext', 'click', () => handleQr(document.getElementById('qrtext').value));
-});
-
-function handleQr(text) {
-  const qr = parseUpiQr(text);
-  if (!qr.ok) {
-    alertUser(BUZZ.danger);
-    const msg = qr.reason === 'web_link' ? tr('web_link') : tr('not_upi');
-    render(`
-      <section class="screen result danger" role="alert">
-        ${screenHeader('')}
-        <p class="status"><span class="status-icon" aria-hidden="true">${ICON.danger}</span><span class="readable">${esc(msg)}</span></p>
-        <button class="btn big primary" id="again" data-next>${esc(tr('scan_again'))}</button>
-      </section>`);
-    wireHeader();
-    announce(msg, { force: true });
-    on('#again', 'click', () => go('scan'));
-    return;
-  }
-  flow.qr = qr;
-  flow.check = checkPayment(qr, { intendedShop: flow.intendedShop, intendedAmount: flow.intendedAmount, savedShops: store.get().savedShops });
-  go('result');
+  on('[data-demo]', 'click', (e) => once(DEMO_QRS[Number(e.currentTarget.dataset.demo)].text));
+  on('#usetext', 'click', () => once(document.getElementById('qrtext').value));
 }
 
-// ---------- 3. Result: same / different / new ----------
-route('result', () => {
-  const { qr, check } = flow;
-  const shop = check.shopName || qr.payeeVpa;
-  const head = {
-    [STATUS.SAME]: { title: tr('s_same'), detail: tr('s_same_detail', { shop }) },
-    [STATUS.DIFFERENT]: { title: tr('s_different'), detail: tr('s_different_detail', { shop }) },
-    [STATUS.NEW]: { title: tr('s_new'), detail: tr('s_new_detail') },
-  }[check.status];
-  const lines = check.findings.filter((f) => f.code !== 'different_account' && f.code !== 'new_account').map(findingText);
-  const level = check.level;
-  const danger = level === LEVEL.DANGER;
-
-  render(`
-    <section class="screen result ${level}" ${danger ? 'role="alert"' : ''}>
-      ${screenHeader('')}
-      <p class="status"><span class="status-icon" aria-hidden="true">${ICON[level]}</span><strong>${esc(head.title)}</strong></p>
-      <div class="readable">
-        <p>${esc(head.detail)}</p>
-        ${lines.map((l) => `<p class="finding">${esc(l)}</p>`).join('')}
-        <p class="listen">${esc(tr('listen_name'))}</p>
-      </div>
-      <div class="details">
-        <p>${esc(qr.payeeName ? tr('qr_pays', { name: qr.payeeName }) : tr('qr_no_name'))}</p>
-        <p class="vpa">${esc(tr('upi_id', { vpa: qr.payeeVpa }))}</p>
-        ${qr.amount != null ? `<p>${esc(money(qr.amount))}</p>` : ''}
-      </div>
-      <button class="btn" id="read"><span class="icon" aria-hidden="true">🔊</span>${esc(tr('read_this'))}</button>
-      <div class="stack">
-        ${danger
-          ? `<button class="btn big primary" id="again" data-next>${esc(tr('scan_again'))}</button>
-             <button class="btn" id="continue">${esc(tr('continue_anyway'))}</button>`
-          : `<button class="btn big primary" id="continue" data-next>${esc(tr('continue'))}</button>
-             <button class="btn" id="again">${esc(tr('scan_again'))}</button>`}
-      </div>
-    </section>`, { title: head.title });
-  wireHeader();
-  alertUser(BUZZ_FOR[level]);
-  // Danger is always spoken, whatever the profile: a missed warning costs money.
-  announce([head.title, head.detail, ...lines, tr('listen_name')].join(' '), { force: danger });
-  on('#read', 'click', readScreen);
-  on('#again', 'click', () => go('scan'));
-  on('#continue', 'click', () => go('amount'));
-});
-
-// ---------- 4. Amount ----------
-function spokenAmount(text) {
-  const d = (text || '').replace(/[,\s]/g, '').match(/\d+(\.\d{1,2})?/);
-  return d ? Number(d[0]) : wordsToNumber(text);
-}
-
-route('amount', () => {
-  const preset = flow.qr.amount ?? flow.intendedAmount;
-  const name = flow.check.shopName || flow.qr.payeeVpa;
+function notPayment(qr, again) {
+  alertUser(BUZZ.danger);
+  const msg = qr.reason === 'web_link' ? tr('web_link') : tr('not_upi');
   render(`
     <section class="screen">
-      ${screenHeader(tr('enter_amount'))}
-      <p class="to">→ ${esc(name)}</p>
-      <output id="amount" class="amount" aria-live="polite">₹0</output>
-      <p id="words" class="words"></p>
-      <div id="keypad"></div>
-      ${canListen ? `<button class="btn big" id="say"><span class="icon" aria-hidden="true">🎤</span>${esc(tr('speak'))}</button>` : ''}
-      <button class="btn big primary" id="next" data-next>${esc(tr('next'))}</button>
-    </section>`, { title: tr('enter_amount') });
-  wireHeader();
-  const out = document.getElementById('amount');
-  const words = document.getElementById('words');
-  const show = (v) => { const n = Number(v || 0); out.textContent = money(n); words.textContent = n ? rupeesInWords(n) : ''; };
-  const pad = mountKeypad(document.getElementById('keypad'), {
-    tolerant: P().tremorSafe,
-    onChange: show,
-    onKey: (k) => { vibrate(BUZZ.tick); if (P().voice) speak(k === 'back' ? '⌫' : k === 'clear' ? '0' : k); },
-  });
-  if (preset) pad.set(String(Math.round(preset)));
-  announce(tr('enter_amount'));
-  on('#say', 'click', async () => {
-    announce(tr('listening'));
-    const n = spokenAmount(await listenOnce());
-    if (n) { pad.set(String(Math.round(n))); announce(money(n)); }
-  });
-  on('#next', 'click', () => {
-    flow.amount = Number(pad.value || 0);
-    const saved = flow.check.shop;
-    flow.amountCheck = checkAmount(flow.amount, {
-      intendedAmount: flow.intendedAmount, usualAmount: saved?.usualAmount, largeLimit: store.get().largeLimit,
-    });
-    if (flow.amountCheck.findings.some((f) => f.code === 'amount_invalid')) {
-      alertUser(BUZZ.caution);
-      announce(tr('f_amount_invalid'), { force: true });
-      return;
-    }
-    go('confirm');
+      <div class="status-card danger" role="alert"><span class="status-icon" aria-hidden="true">${ICON.danger}</span><div><p class="status-title readable">${esc(msg)}</p></div></div>
+      <button class="btn big primary" id="again" data-next>${esc(tr('scan_again'))}</button>
+    </section>`, { bar: 'back' });
+  announce(msg, { force: true });
+  on('#again', 'click', again);
+}
+
+// ---------- Home = scan to pay ----------
+route('home', () => {
+  render(`<section class="screen">${scannerHtml(tr('point_camera'))}</section>`, { bar: 'home' });
+  announce(tr('point_camera'));
+  wireScanner((text) => {
+    const qr = parseUpiQr(text);
+    if (!qr.ok) return notPayment(qr, goHome);
+    go('result', qr);
   });
 });
 
-// ---------- 5. Confirm (pause on risk, hold-to-pay when shaky hands or simple mode) ----------
-route('confirm', () => {
-  const levels = [flow.check.level, flow.amountCheck.level];
-  const level = levels.includes(LEVEL.DANGER) ? LEVEL.DANGER : levels.includes(LEVEL.CAUTION) ? LEVEL.CAUTION : LEVEL.OK;
-  const wait = pauseSeconds(level === LEVEL.CAUTION && flow.check.status === STATUS.NEW && !flow.amountCheck.findings.length ? LEVEL.OK : level);
-  const hold = P().tremorSafe;
-  const name = flow.check.shopName || flow.qr.payeeVpa;
-  const extra = flow.amountCheck.findings.map(findingText);
-  const label = () => (hold ? tr('confirm_hold') : tr('confirm_tap'));
+// ---------- Result + amount + pay, on one screen ----------
+route('result', (qr) => {
+  const check = checkPayment(qr, { savedShops: store.get().savedShops });
+  const usual = check.shop?.usualAmount || null;
+  let head;
+  if (check.status === STATUS.SAME) head = { title: tr('r_same', { shop: check.shopName }), sub: tr('r_same_sub') };
+  else if (check.status === STATUS.DIFFERENT) head = { title: tr('r_swapped', { shop: check.shopName }), sub: tr('r_swapped_sub', { shop: check.shopName }) };
+  else head = { title: tr('r_new'), sub: qr.payeeName ? tr('r_new_sub_name', { name: qr.payeeName }) : tr('r_new_sub_noname') };
+  const extra = check.findings.filter((f) => ['receive_money_trick', 'not_a_payment_qr'].includes(f.code)).map((f) => tr(`f_${f.code}`));
+  const danger = check.level === LEVEL.DANGER;
 
   render(`
-    <section class="screen result ${level}">
-      ${screenHeader('')}
-      <p class="amount">${esc(money(flow.amount))}</p>
-      <p class="words">${esc(rupeesInWords(flow.amount))}</p>
-      <p class="to">→ ${esc(name)} <span class="vpa">(${esc(flow.qr.payeeVpa)})</span></p>
-      <div class="readable">${extra.map((l) => `<p class="finding">${esc(l)}</p>`).join('')}<p class="listen">${esc(tr('listen_name'))}</p></div>
-      <button class="btn big primary pay" id="pay" data-next ${wait ? 'disabled' : ''}>
-        <span class="fill" aria-hidden="true"></span><span class="label">${esc(wait ? tr('paying_in', { s: wait }) : label())}</span>
-      </button>
-      <button class="btn" id="cancel">${esc(tr('cancel'))}</button>
-    </section>`, { title: tr('confirm_tap') });
-  wireHeader();
-  alertUser(BUZZ_FOR[level]);
-  announce([tr('amount_is', { amount: money(flow.amount), name }), ...extra].join(' '), { force: level === LEVEL.DANGER });
+    <section class="screen">
+      <div class="status-card ${check.level}" ${danger ? 'role="alert"' : ''}>
+        <span class="status-icon" aria-hidden="true">${ICON[check.level]}</span>
+        <div class="readable">
+          <p class="status-title">${esc(head.title)}</p>
+          <p class="status-sub">${esc(head.sub)}</p>
+          ${extra.map((x) => `<p class="status-extra">${esc(x)}</p>`).join('')}
+        </div>
+      </div>
+      <p class="vpa">${esc(qr.payeeVpa)}</p>${usual ? `<p class="muted">${esc(tr('usual', { amount: money(usual) }))}</p>` : ''}
+      ${danger ? `
+        <div class="stack" id="danger-actions">
+          <button class="btn big primary" id="again" data-next>${esc(tr('scan_again'))}</button>
+          <button class="btn" id="anyway">${esc(tr('continue_anyway'))}</button>
+        </div>` : ''}
+      <div id="pay-area" ${danger ? 'hidden' : ''}>
+        <div class="amount-box">
+          <span class="label">${esc(tr('amount_q'))}</span>
+          <output id="amount" class="amount" aria-live="polite">₹0</output>
+          <p id="words" class="words"></p>
+          <div id="amount-warn" class="amount-warn" role="status"></div>
+        </div>
+        <div id="keypad"></div>
+        ${canListen ? `<button class="btn" id="say"><span aria-hidden="true">🎙</span> ${esc(tr('say_amount'))}</button>` : ''}
+        <button class="btn big primary pay" id="pay" data-next><span class="fill" aria-hidden="true"></span><span class="label-text"></span></button>
+        <p class="hint">${esc(tr('listen_name'))}</p>
+        <button class="btn ghost" id="again2">${esc(tr('scan_again'))}</button>
+      </div>
+    </section>`, { bar: 'back', title: head.title });
 
+  alertUser(BUZZ_FOR[check.level]);
+  const spoken = [head.title, head.sub, ...extra];
+  if (!danger) spoken.push(usual ? tr('usual', { amount: money(usual) }) : '', tr('amount_q'));
+  announce(spoken.filter(Boolean).join('. '), { force: danger });
+
+  on('#again', 'click', goHome);
+  on('#again2', 'click', goHome);
+  on('#anyway', 'click', () => {
+    document.getElementById('danger-actions').hidden = true;
+    document.getElementById('pay-area').hidden = false;
+    lockFor(pauseSeconds(LEVEL.DANGER));
+  });
+
+  // ----- amount entry -----
+  const out = document.getElementById('amount');
+  const words = document.getElementById('words');
+  const warn = document.getElementById('amount-warn');
   const btn = document.getElementById('pay');
-  const lab = btn.querySelector('.label');
+  const label = btn.querySelector('.label-text');
   const fill = btn.querySelector('.fill');
-  let remaining = wait;
-  const timer = remaining ? setInterval(() => {
-    remaining -= 1;
-    if (remaining <= 0) { clearInterval(timer); btn.disabled = false; lab.textContent = label(); }
-    else lab.textContent = tr('paying_in', { s: remaining });
-  }, 1000) : null;
-  setCleanup(() => timer && clearInterval(timer));
+  const hold = P().tremorSafe;
+  let amount = 0;
+  let amountLevel = LEVEL.OK;
+  let lockedUntil = 0;
+  let timer = null;
 
+  const payLabel = () => (hold ? tr('hold_to_pay') : tr('tap_to_pay'));
+  const refreshButton = () => {
+    const left = Math.ceil((lockedUntil - Date.now()) / 1000);
+    btn.disabled = left > 0 || !amount;
+    label.textContent = left > 0 ? tr('wait_s', { s: left }) : `${payLabel()}${amount ? `  ${money(amount)}` : ''}`;
+  };
+  function lockFor(s) {
+    if (!s) return;
+    lockedUntil = Date.now() + s * 1000;
+    clearInterval(timer);
+    timer = setInterval(() => { refreshButton(); if (Date.now() >= lockedUntil) clearInterval(timer); }, 250);
+    refreshButton();
+  }
+  setCleanup(() => clearInterval(timer));
+
+  const onAmount = (v) => {
+    amount = Number(v || 0);
+    out.textContent = money(amount);
+    words.textContent = amount ? rupeesInWords(amount) : '';
+    const a = amount ? checkAmount(amount, { usualAmount: usual, qrAmount: qr.amount, largeLimit: store.get().largeLimit }) : { level: LEVEL.OK, findings: [] };
+    const text = a.findings.map((f) => tr(`f_${f.code}`, { usual: f.vars?.usual ? money(f.vars.usual) : '', qr: f.vars?.qr ? money(f.vars.qr) : '' }));
+    warn.textContent = text.join(' ');
+    warn.className = `amount-warn ${a.level}`;
+    if (a.level === LEVEL.DANGER && amountLevel !== LEVEL.DANGER) {
+      alertUser(BUZZ.danger);
+      announce(text.join(' '), { force: true });
+      lockFor(pauseSeconds(LEVEL.DANGER));
+    }
+    amountLevel = a.level;
+    refreshButton();
+  };
+
+  const pad = mountKeypad(document.getElementById('keypad'), {
+    tolerant: P().tremorSafe,
+    onChange: onAmount,
+    onKey: (k) => { vibrate(BUZZ.tick); if (P().voice && /^\d$/.test(k)) speak(k); },
+  });
+  if (qr.amount) pad.set(String(Math.round(qr.amount)));
+  else onAmount(0);
+
+  on('#say', 'click', async () => {
+    announce(tr('listening'));
+    const heard = await listenOnce();
+    const d = (heard || '').replace(/[,\s]/g, '').match(/\d+(\.\d{1,2})?/);
+    const n = d ? Number(d[0]) : wordsToNumber(heard);
+    if (n) { pad.set(String(Math.round(n))); announce(tr('amount_spoken', { amount: money(n), name: check.shopName })); }
+  });
+
+  const go_ = () => { if (!btn.disabled) handOff(qr, check, amount); };
   if (hold) {
     let t = null;
-    const start = (e) => {
+    btn.addEventListener('pointerdown', (e) => {
       if (btn.disabled) return;
       e.preventDefault();
       fill.style.transition = 'width 1.2s linear';
       fill.style.width = '100%';
-      t = setTimeout(handOff, 1200);
-    };
+      t = setTimeout(go_, 1200);
+    });
     const end = () => { clearTimeout(t); fill.style.transition = 'none'; fill.style.width = '0'; };
-    btn.addEventListener('pointerdown', start);
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, end));
-    btn.addEventListener('click', (e) => { if (!e.pointerType && !btn.disabled) handOff(); }); // keyboard / screen reader
+    btn.addEventListener('click', (e) => { if (!e.pointerType) go_(); }); // keyboard and screen readers
   } else {
-    btn.addEventListener('click', handOff);
+    btn.addEventListener('click', go_);
   }
-  on('#cancel', 'click', () => { resetHistory(); go('home'); });
+  on('#read', 'click', readScreen);
 });
 
-// ---------- 6. Hand-off to the user's UPI app, then offer to save the shop ----------
-function handOff() {
-  const { qr, amount, check } = flow;
-  const link = buildUpiLink({ payeeVpa: qr.payeeVpa, payeeName: qr.payeeName, amount, note: qr.note });
-  store.addHistory({ name: check.shopName || qr.payeeVpa, vpa: qr.payeeVpa, amount, status: check.status });
-  const shopName = flow.intendedShop || qr.payeeName || '';
-  const offerSave = check.status === STATUS.NEW && shopName && !findShop(store.get().savedShops, shopName);
-
+// ---------- Hand-off to the user's UPI app ----------
+function handOff(qr, check, amount) {
+  const upi = buildUpiLink({ payeeVpa: qr.payeeVpa, payeeName: qr.payeeName, amount, note: qr.note });
+  const link = appLink(upi, P().payApp);
+  store.addHistory({ name: check.shopName, vpa: qr.payeeVpa, amount, status: check.status });
+  const app = appName();
+  const offerSave = check.status === STATUS.NEW && qr.payeeName;
   render(`
     <section class="screen">
-      <h1>${esc(tr('open_upi'))}</h1>
-      <p class="amount">${esc(money(amount))}</p>
-      <p class="to">→ ${esc(check.shopName || qr.payeeVpa)}</p>
-      <a class="btn big primary" href="${esc(link)}" id="open">${esc(tr('open_upi_btn'))}</a>
-      <p class="hint">${esc(tr('upi_fallback'))}</p>
-      ${offerSave ? `
-        <div class="card" id="save-card">
-          <p><strong>${esc(tr('save_shop_q', { shop: shopName }))}</strong></p>
-          <p class="hint">${esc(tr('save_shop_note'))}</p>
-          <div class="row">
-            <button class="btn primary" id="save" data-next>${esc(tr('save'))}</button>
-            <button class="btn" id="later">${esc(tr('not_now'))}</button>
-          </div>
-        </div>` : ''}
-      <button class="btn" id="home">${esc(tr('home'))}</button>
-    </section>`, { title: tr('open_upi_btn') });
+      <div class="status-card neutral"><span class="status-icon" aria-hidden="true">₹</span>
+        <div class="readable"><p class="status-title">${esc(tr('opening', { app }))}</p><p class="status-sub">${esc(tr('opening_sub', { app }))}</p></div>
+      </div>
+      <p class="amount center">${esc(money(amount))}</p>
+      <p class="center muted">${esc(check.shopName)}</p>
+      <a class="btn big primary" href="${esc(link)}" id="open">${esc(tr('open_again', { app }))}</a>
+      <p class="hint">${esc(tr('fallback', { app }))}</p>
+      ${offerSave ? `<button class="btn" id="save">${esc(tr('save_this_shop', { name: qr.payeeName }))}</button><p class="hint">${esc(tr('save_note'))}</p>` : ''}
+      <button class="btn ghost" id="done">${esc(tr('done'))}</button>
+    </section>`, { bar: 'back' });
   alertUser(BUZZ.ok);
-  announce(`${tr('open_upi')} ${offerSave ? tr('save_shop_q', { shop: shopName }) : ''}`);
-
-  on('#save', 'click', () => {
-    store.saveShop({ name: shopName, vpa: qr.payeeVpa, usualAmount: amount });
-    document.getElementById('save-card').innerHTML = `<p>${esc(tr('saved'))}</p>`;
-    announce(tr('saved'));
-  });
-  on('#later', 'click', () => { document.getElementById('save-card').remove(); });
-  on('#home', 'click', () => { resetHistory(); go('home'); });
-  setTimeout(() => { window.location.href = link; }, 1200);
+  announce(`${tr('opening', { app })}. ${tr('opening_sub', { app })}`);
+  on('#save', 'click', () => go('name-shop', qr, 'home'));
+  on('#done', 'click', goHome);
+  setTimeout(() => { window.location.href = link; }, 700);
 }
+
+// ---------- Add a regular shop: scan its QR once, then name it ----------
+route('add-shop', (returnTo = 'shops') => {
+  render(`<section class="screen"><h1>${esc(tr('scan_shop'))}</h1>${scannerHtml(tr('point_camera'))}</section>`, { bar: 'back', title: tr('scan_shop') });
+  announce(tr('point_camera'));
+  wireScanner((text) => {
+    const qr = parseUpiQr(text);
+    if (!qr.ok) return notPayment(qr, () => go('add-shop', returnTo));
+    go('name-shop', qr, returnTo);
+  });
+});
+
+route('name-shop', (qr, returnTo = 'shops') => {
+  render(`
+    <section class="screen">
+      <h1>${esc(tr('name_shop_q'))}</h1>
+      <p class="muted">${esc(tr('name_shop_hint', { vpa: qr.payeeVpa }))}${qr.payeeName ? ` ${esc(tr('name_shop_from_qr', { name: qr.payeeName }))}` : ''}</p>
+      <label class="sr-only" for="name">${esc(tr('name_shop_q'))}</label>
+      <input id="name" class="field big-field" autocomplete="off" value="${esc(qr.payeeName || '')}">
+      ${canListen ? `<button class="btn" id="say"><span aria-hidden="true">🎙</span> ${esc(tr('speak'))}</button>` : ''}
+      <button class="btn big primary" id="save" data-next>${esc(tr('save'))}</button>
+    </section>`, { bar: 'back', title: tr('name_shop_q') });
+  announce(`${tr('name_shop_q')} ${qr.payeeName ? tr('name_shop_from_qr', { name: qr.payeeName }) : ''}`);
+  const input = document.getElementById('name');
+  on('#say', 'click', async () => {
+    announce(tr('listening'));
+    const heard = await listenOnce({ lang: 'en' });
+    if (heard) { input.value = heard; announce(heard); }
+  });
+  on('#save', 'click', () => {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    store.saveShop({ name, vpa: qr.payeeVpa, usualAmount: qr.amount || null });
+    alertUser(BUZZ.ok);
+    announce(tr('shop_saved', { name }), { force: true });
+    if (returnTo === 'home') goHome(); else go(returnTo);
+  });
+});

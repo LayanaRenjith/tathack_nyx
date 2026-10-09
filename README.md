@@ -1,92 +1,88 @@
-# Sahaaya: technology that adapts
+# Sahaaya
 
-Most apps make every user adapt to them. **Sahaaya adapts to the user.** It tests how a person reads, sees colour, taps and hears, reshapes itself in Malayalam, and then helps with the task where mistakes cost most: checking who you are paying before a UPI payment.
+**Check who you are paying, before you pay.** An accessibility companion for UPI payments, in Malayalam and English, for people who can't read the payment screen: blind and low-vision users, elderly people, people with hand tremors or colour blindness, and first-time smartphone users.
 
-## Problem
+## The problem
 
-Since June 2025, UPI apps show the bank-verified payee name before the PIN. That on-screen name is the main defence against fake QR stickers pasted over a shop's real QR. But it is a **visual task**: blind and low-vision users can't read it, elderly users miss it, colour-blind users can't rely on red and green warnings, people with tremors mistype amounts, and Malayalam-only users get it in English. So they hand their phone to someone else.
+Since June 2025, UPI apps show the bank-verified name of the person being paid, just before the PIN. Reading that name is the main way people catch a fake QR sticker pasted over a shop's real one. In Khajuraho in January 2025, a fake-QR scam across more than a dozen shops was caught only because a customer read the wrong name on screen.
 
-## Solution
+That check is visual. People who can't read the screen either pay blind or hand their phone to a stranger, which is exactly what QR-swap scams rely on.
 
-**1. Accessible setup (tests, not forms).** Starts large, spoken, with one big button. Every step can be skipped or answered by voice; a family member can set it up instead. Nothing asks for a diagnosis.
+## How it works in real life
 
-| Test | What it turns on |
+**Once, with family (about 5 minutes).** A son, daughter or neighbour opens Sahaaya, which starts large and spoken. They pick the language, tick what helps (hard to see, hands shake, hard to hear, new to smartphones…), choose the payment app, check the preview, and then **scan the QR of each regular shop once, at the shop**. Sahaaya remembers each shop's real account.
+
+**Every day (4 steps).**
+1. Open Sahaaya: the camera is already on.
+2. Scan the shop's QR. The phone vibrates faster as the code gets closer.
+3. Hear the result, then say or type the amount.
+4. Hold to pay. Google Pay (or PhonePe, Paytm, BHIM) opens with everything filled in; the PIN is entered there.
+
+| What the QR is | What Sahaaya says |
 |---|---|
-| Reading: tap the smallest line you can read | Text size; contrast, big buttons and voice for low vision |
-| Colour: tap the red circle | Colour-blind palette (meaning always carried by icons and words too) |
-| Touch: tap three circles | Tremor protection (keypad ignores double taps, hold-to-pay) and big buttons |
-| Hearing: did you hear the sound? | Flash + vibration alerts |
-| Preferences | Easy-reading text with word highlighting, simple screens with "tap here" pointers, read-aloud |
+| A saved shop's account | ✓ "Lakshmi Bakery. Same account as always." |
+| Claims a saved shop's name but pays another account | ✕ "Stop. Not Lakshmi Bakery's account. The sticker may have been replaced." Payment stays hidden until the user confirms they checked with the shop, then waits 10 seconds. |
+| Any other account | ! "Not one of your shops. This QR pays Chhotu Tiwari. Not checked." |
 
-**2. Adaptive profile.** Needs combine (large text + Malayalam voice + tremor protection at once). The profile changes the real layout and task flow everywhere, and every setting can be changed in Settings at any time.
+Also caught: an extra zero compared with what this shop usually costs, an amount different from the one printed in the QR, "scan to receive money" tricks, and non-payment UPI requests.
 
-**3. SafeScan payment check.** Say your intent ("Pay Lakshmi Bakery 250"), scan the QR, and Sahaaya compares the QR's **UPI ID** with the account you saved for that shop. It never trusts the name written inside a QR, because anyone can type any name there.
+The decision is always made on the **UPI ID**, never on the name written inside the QR, because anyone can type any name there. Sahaaya never says "safe".
 
-| Result | Meaning |
+## Built for different needs
+
+| Need ticked at setup | What changes |
 |---|---|
-| ✓ Same account as before | Matches the account saved for this shop. Not a guarantee: still listen for the name in your UPI app. |
-| ✕ Different account | The QR pays a different account, even if its name looks right. Stop and check. |
-| ! New account, not checked | Nothing saved to compare with. Shown as unverified, never as safe. |
+| Hard to see | Larger text, black-and-yellow contrast, everything spoken, vibration guides the camera |
+| Reading is hard | Easy-reading font, wider spacing, words highlighted as they are read aloud |
+| Hard to tell colours apart | Blue / orange / magenta palette; meaning always shown with icons and words too |
+| Hands shake | Big buttons, keypad that ignores double taps and brushes, hold-to-pay |
+| Hard to hear | Flashing and vibrating warnings; no speech needed |
+| New to smartphones | Simple screens, slower speech, a pointer on the next step |
 
-Also checked: amount different from what you planned, extra zero, "scan to receive money" tricks, non-payment UPI actions (mandates), missing or malformed QR data. Risky results add a 3–10 second pause. Then Sahaaya opens the user's own UPI app (GPay, PhonePe, BHIM) with the details filled in; the PIN is entered there. After a payment you trust, save the shop so the next visit can be compared.
+**Learns as you use it:** if taps keep missing buttons or repeating, Sahaaya offers bigger buttons. Voice commands work on every screen: read, bigger, smaller, slower, faster, shops, settings, back.
 
-**4. Voice commands** on every screen (Malayalam and English): pay, read, bigger, smaller, slower, faster, back, home, settings, my shops, stop.
+## No bank or GPay integration needed
 
-### How it differs
+Sahaaya uses NPCI's standard UPI payment link (`upi://pay`), the same one every "Pay with any UPI app" button uses. On Android it can open a specific app directly. Money and PINs stay inside the user's UPI app; Sahaaya never sees them and never claims a payment succeeded.
 
-| Existing | What it does | What Sahaaya adds |
-|---|---|---|
-| Phone accessibility settings | Font size, screen reader, in menus | Guided Malayalam setup with tests; changes task flows, not only looks |
-| UPI verified-name screen | Shows the bank name before the PIN | A check people who can't read that screen can use |
-| NPCI Hello! UPI | Voice commands to *make* payments | Checking the QR against the shop's saved account |
-| QR security scanners | Show payee details visually | Voice, vibration, large text, Malayalam, saved-account memory |
+Before relying on it, test on a real phone: Settings → "Test that your payment app opens" pays ₹1 to a UPI ID you choose. Some UPI apps limit link payments to personal accounts.
 
 ## Run it
 
 No build step and no dependencies.
 
 ```bash
-npm start        # http://localhost:5173   (or: python -m http.server 5173)
-npm test         # unit tests: safety engine, profile, intent and command parsing, keypad
-npm run vendor   # optional: download jsQR into vendor/ for offline QR decoding without BarcodeDetector
+npm start                    # http://localhost:5173
+python -m http.server 5173   # alternative without Node
+npm test                     # 25 unit tests
+npm run vendor               # optional: offline QR decoding for phones without BarcodeDetector
 ```
 
-**On a phone:** the camera needs HTTPS, so deploy to any static host (Netlify, Vercel, GitHub Pages) and open it in Chrome on Android. Android is needed for the `upi://` hand-off and vibration.
+On a phone the camera needs HTTPS: deploy the folder to any static host (Netlify, Vercel, GitHub Pages) and open it in Chrome on Android.
 
-**Trying the payment check:** Settings → "Add sample shops", then Pay safely → Lakshmi Bakery, ₹250 → open "Test QR codes" on the scan screen. Printable codes: `/tools/print-qrs.html`.
+**Trying it without a shop:** during setup, scan "Lakshmi Bakery (real)" from the Test QR codes panel to save it. Then from the home screen, try "Lakshmi Bakery (swapped sticker)". Printable codes: `/tools/print-qrs.html`.
 
 ## Project structure
 
 ```
-index.html, styles.css     App shell; styles read the profile (CSS variables + data attributes)
-sw.js, manifest.webmanifest Offline PWA
-src/
-  app.js        Home, My shops, Settings, voice commands, start-up
-  setup.js      Accessible setup tests and preview
-  pay.js        SafeScan flow: intent → scan → result → amount → confirm → UPI app → save shop
-  profile.js    Setup answers → profile; applies it to the page
-  safety.js     Payment checks (account comparison, amount, scam rules)
-  match.js      Saved-shop lookup, spoken-intent parsing
-  commands.js   Voice command parsing
-  upi.js        UPI QR parsing and hand-off link
-  scanner.js    Camera QR scanning with vibration guidance
-  speech.js     Speech out/in, word highlighting, test tone, vibration
-  keypad.js     Tremor-tolerant keypad
-  amount.js     Rupees in words (lakh/crore)
-  i18n.js       Malayalam + English strings
-  store.js      Profile, saved shops, history (on the phone only)
-  ui.js         Routing and shared UI helpers
-  demo-codes.js Sample shops and QR payloads (fictional UPI IDs)
-tests/          Node test runner
-tools/          Printable sample QR sheet
+index.html, styles.css   App shell and design system (profile applied via CSS variables)
+src/app.js               My shops, Settings, voice commands, start-up
+src/setup.js             One-time family setup
+src/pay.js               Scan → result + amount → hold to pay → UPI app; add a shop
+src/safety.js            Payment check (account comparison, swap detection, amount rules)
+src/profile.js           Needs → settings; applies them to the page
+src/adapt.js             Offers bigger buttons after missed or repeated taps
+src/upi.js               UPI QR parsing, standard and app-specific payment links
+src/scanner.js           Camera QR scanning with vibration guidance
+src/speech.js            Speech out/in, word highlighting, vibration
+src/keypad.js            Tremor-tolerant keypad
+src/match.js, amount.js, commands.js, i18n.js, store.js, ui.js, demo-codes.js
+tests/                   Node test runner
 ```
 
-## Privacy and safety
+## Privacy
 
-- No backend: profile, saved shops and history stay on the phone.
-- Never asks for, sees or stores a UPI PIN; never moves money; never claims a payment succeeded.
-- Never says "safe": only same account, different account, or new account not checked.
-- Warnings never rely on colour, sound or vibration alone.
+No backend and no account. Settings, saved shops and history stay on the phone.
 
 ## License
 

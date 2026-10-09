@@ -1,4 +1,4 @@
-// Sample shops and QR payloads for testing. All UPI IDs are fictional.
+// Sample shops and QR payloads for trying Sahaaya. All UPI IDs are fictional.
 // Print the QR codes with tools/print-qrs.html.
 
 export const SAMPLE_SHOPS = [
@@ -9,22 +9,22 @@ export const SAMPLE_SHOPS = [
 export const DEMO_QRS = [
   {
     label: 'Lakshmi Bakery (real)',
-    expect: 'same account as before (after adding sample shops)',
+    expect: 'Lakshmi Bakery, same account as always',
     text: 'upi://pay?pa=lakshmibakery@okaxis&pn=Lakshmi%20Bakery&mc=5462&cu=INR',
   },
   {
     label: 'Lakshmi Bakery (swapped sticker)',
-    expect: 'different account, even though the name looks right',
+    expect: 'stop: claims Lakshmi Bakery, pays another account',
     text: 'upi://pay?pa=lakshmi.bakery7@ybl&pn=Lakshmi%20Bakery&cu=INR',
   },
   {
-    label: 'Lakshmi Bakery asks ₹2,500',
-    expect: 'amount differs from what you planned (₹250)',
-    text: 'upi://pay?pa=lakshmibakery@okaxis&pn=Lakshmi%20Bakery&am=2500&mc=5462&cu=INR',
+    label: 'Swapped sticker with another name',
+    expect: 'not one of your shops: pays Chhotu Tiwari',
+    text: 'upi://pay?pa=chhotu.t99@ybl&pn=Chhotu%20Tiwari&cu=INR',
   },
   {
     label: 'Green Tea Stall (new shop)',
-    expect: 'new account, not checked',
+    expect: 'not one of your shops, not checked',
     text: 'upi://pay?pa=greenteastall@okicici&pn=Green%20Tea%20Stall&cu=INR',
   },
   {
