@@ -8,6 +8,7 @@ export const DEFAULT_PROFILE = {
   bigTargets: false,    // larger buttons and spacing
   voice: false,         // Sahaaya speaks screens and results
   handsFree: false,     // after a scan: say the amount, then "yes" to pay
+  voiceOnly: false,     // full voice control: Sahaaya listens after every screen, no buttons needed
   screenReader: false,  // user runs TalkBack: Sahaaya stays quiet and lets TalkBack read
   openScanner: false,   // open the scanner straight away when the app starts
   speechRate: 1,
@@ -22,13 +23,14 @@ export const DEFAULT_PROFILE = {
 /** First run: big, clear and spoken, so anyone can start. */
 export const START_PROFILE = { ...DEFAULT_PROFILE, textScale: 1.15, bigTargets: true, voice: true };
 
-export const NEEDS = ['seeing', 'screenreader', 'reading', 'colour', 'hands', 'hearing', 'simple', 'listen'];
+export const NEEDS = ['blind', 'seeing', 'screenreader', 'reading', 'colour', 'hands', 'hearing', 'simple', 'listen'];
 
 export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) {
   const has = (n) => needs.includes(n);
   const p = { ...DEFAULT_PROFILE, lang, payApp };
+  if (has('blind')) Object.assign(p, { voiceOnly: true, voice: true, handsFree: true, bigTargets: true, textScale: 1.3, speechRate: 0.95 });
   if (has('seeing')) Object.assign(p, { textScale: 1.5, contrast: true, bigTargets: true, voice: true, handsFree: true, openScanner: true });
-  if (has('screenreader')) Object.assign(p, { screenReader: true, voice: false, handsFree: true, openScanner: true, bigTargets: true });
+  if (has('screenreader')) Object.assign(p, { screenReader: true, voiceOnly: false, voice: false, handsFree: true, openScanner: true, bigTargets: true });
   if (has('reading')) Object.assign(p, { dyslexiaFont: true, voice: !p.screenReader, textScale: Math.max(p.textScale, 1.15) });
   if (has('colour')) p.colourSafe = true;
   if (has('hands')) Object.assign(p, { tremorSafe: true, bigTargets: true });
@@ -39,20 +41,23 @@ export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) 
   return p;
 }
 
-export const TOGGLES = ['voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'dyslexiaFont', 'tremorSafe', 'visualAlerts'];
+export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'dyslexiaFont', 'tremorSafe', 'visualAlerts'];
 
 export function activeSettings(p) {
   return TOGGLES.filter((k) => p[k]);
 }
 
 /** Does Sahaaya speak out loud? Not when TalkBack is reading for the user. */
-export const speaks = (p) => p.voice && !p.screenReader;
+export const speaks = (p) => (p.voice || p.voiceOnly) && !p.screenReader;
+
+/** Full voice control (Sahaaya talks and listens on every screen). */
+export const voiceDriven = (p) => p.voiceOnly && !p.screenReader;
 
 export function applyProfile(p, root = globalThis.document?.documentElement) {
   if (!root) return;
   root.lang = p.lang;
   root.style.setProperty('--scale', String(p.textScale));
-  const flags = { contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: p.dyslexiaFont };
+  const flags = { huge: p.textScale >= 1.45, contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: p.dyslexiaFont };
   for (const [k, v] of Object.entries(flags)) {
     if (v) root.dataset[k] = 'on'; else delete root.dataset[k];
   }

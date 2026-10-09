@@ -9,7 +9,9 @@ import { verifyBiometric, checkCode } from './auth.js';
 import { normalisePhone } from './family.js';
 import { icon } from './icons.js';
 import { BUZZ } from './speech.js';
-import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser } from './ui.js';
+import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice } from './ui.js';
+import { pendingReport } from './report.js';
+import { voiceDriven } from './profile.js';
 import { codePad, codePadHtml, settingsControls, wireSettingsControls, trustedForm, saveTrustedForm, limitsForm, saveLimitsForm } from './onboarding.js';
 
 const money = (n) => formatRupees(n);
@@ -45,39 +47,60 @@ route('lock', (after = 'home') => {
 export function lockNow() { unlocked = false; replace('lock'); }
 
 // ---------- Dashboard ----------
+const BANNER_ART = `<svg class="banner-art" viewBox="0 0 120 90" aria-hidden="true">
+  <circle cx="92" cy="22" r="12" fill="#ffd98a"/>
+  <path d="M0 90 C30 62 60 70 120 54 V90Z" fill="#cfe5d6"/><path d="M0 90 C40 74 80 80 120 70 V90Z" fill="#b5d7c0"/>
+  <path d="M58 86 C58 66 62 52 74 40" stroke="#5f9a77" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M66 58 C54 50 46 54 42 62 C52 66 60 64 66 58Z" fill="#7fb894"/><path d="M70 48 C76 36 88 34 96 38 C90 48 80 52 70 48Z" fill="#8cc3a0"/>
+  <path d="M62 70 C70 62 82 62 88 68 C80 74 70 75 62 70Z" fill="#6aa883"/>
+</svg>`;
+
+function greetingKey(h = new Date().getHours()) { return h < 12 ? 'good_morning' : h < 17 ? 'good_afternoon' : 'good_evening'; }
+
 route('home', () => {
   const s = S();
   const person = s.trusted[0];
+  const pending = pendingReport(s.history, s.reportsSent);
+  const now = new Date();
+  const dateText = now.toLocaleDateString(P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`, { weekday: 'short', day: 'numeric', month: 'short' });
   const tile = (id, tone, ic, title, sub) => `
     <button class="tile tone-${tone}" id="${id}">
-      <span class="badge">${icon(ic)}</span>
+      <span class="tile-ic">${icon(ic)}</span>
       <span class="tile-text"><strong>${esc(title)}</strong><small>${esc(sub)}</small></span>
       <span class="chev">${icon('chevron')}</span>
     </button>`;
+  const morning = now.getHours() < 17;
   render(`
-    <section class="screen">
+    <section class="screen home">
       <div class="greeting">
-        <div><h1>${esc(tr('hello', { name: s.user.name || '' }))}</h1><p class="muted">${esc(tr('hello_sub'))}</p></div>
+        <span class="sun ${morning ? '' : 'moon'}">${icon(morning ? 'sun' : 'moon')}</span>
+        <div class="grow"><p class="greet-small">${esc(tr(greetingKey()))},</p><h1>${esc(s.user.name || '')}</h1><p class="greet-date">${esc(dateText)}</p></div>
+        <button class="icon-btn" data-bar="voice" aria-label="${esc(tr('voice_btn'))}">${icon('mic')}</button>
         <button class="avatar" id="me" aria-label="${esc(tr('profile'))}">${esc(initials(s.user.name))}</button>
       </div>
       <button class="hero-card" id="pay" data-next>
         <span class="hero-badge">${icon('scan')}</span>
         <span class="hero-text"><strong>${esc(tr('tile_pay'))}</strong><small>${esc(tr('tile_pay_sub'))}</small></span>
-        <span class="chev">${icon('chevron')}</span>
+        <span class="hero-go">${icon('chevron')}</span>
       </button>
-      ${person && s.limits.perPayment ? `<p class="note info-note">${icon('family')}<span>${esc(tr('limit_note', { amount: money(s.limits.perPayment), name: person.name }))}</span></p>` : ''}
+      ${pending ? `<button class="notice tone-pink" id="pending">${icon('chart')}<span class="grow"><strong>${esc(tr('report_ready', { month: new Date(pending.year, pending.month, 1).toLocaleString(P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`, { month: 'long' }) }))}</strong><small>${esc(person ? tr('report_send', { name: person.name }) : formatRupees(pending.total))}</small></span>${icon('chevron')}</button>` : ''}
       <div class="tiles">
-        ${tile('shops', 'teal', 'store', tr('tile_shops'), tr('tile_shops_sub', { n: s.savedShops.length }))}
+        ${tile('shops', 'green', 'store', tr('tile_shops'), tr('tile_shops_sub', { n: s.savedShops.length }))}
         ${tile('family', 'purple', 'family', tr('tile_family'), person ? tr('tile_family_sub', { name: person.name }) : tr('tile_family_sub_none'))}
-        ${tile('history', 'blue', 'history', tr('tile_history'), tr('tile_history_sub'))}
-        ${tile('access', 'amber', 'sliders', tr('tile_settings'), tr('tile_settings_sub'))}
+        ${tile('report', 'pink', 'chart', tr('nav_report'), tr('tile_report_sub'))}
+        ${person ? tile('call', 'peach', 'call', tr('tile_call', { name: person.name }), tr('tile_call_sub')) : tile('access', 'peach', 'sliders', tr('tile_settings'), tr('tile_settings_sub'))}
       </div>
-    </section>`, { top: 'brand', nav: 'home', title: tr('home') });
-  announce(`${tr('hello', { name: s.user.name })}. ${tr('tile_pay')}.`);
+      ${person && s.limits.perPayment ? `<p class="note info-note">${icon('shield')}<span>${esc(tr('limit_note', { amount: money(s.limits.perPayment), name: person.name }))}</span></p>` : ''}
+      <div class="banner"><p>${esc(tr('banner'))} <span aria-hidden="true">💚</span></p>${BANNER_ART}</div>
+    </section>`, { top: null, nav: 'home', title: tr('home') });
+  setVoice({ help: tr('vm_help_home') });
+  announce(`${tr(greetingKey())}, ${s.user.name}. ${voiceDriven(P()) ? tr('vm_help_home') : tr('tile_pay')}`);
   on('#pay', 'click', () => go('scan'));
   on('#shops', 'click', () => go('shops'));
   on('#family', 'click', () => go('trusted'));
-  on('#history', 'click', () => go('history'));
+  on('#report', 'click', () => go('report'));
+  on('#pending', 'click', () => go('report', -1));
+  on('#call', 'click', () => { window.location.href = `tel:+${normalisePhone(person.phone)}`; });
   on('#access', 'click', () => go('settings'));
   on('#me', 'click', () => go('profile'));
 });
@@ -87,18 +110,29 @@ route('history', () => {
   const h = S().history;
   const tone = { same: 'ok', new: 'caution', different: 'danger' };
   const ic = { same: 'check', new: 'info', different: 'alert' };
-  const fmt = (at) => new Date(at).toLocaleString(P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  render(`
-    <section class="screen">
-      <h1>${esc(tr('tile_history'))}</h1>
-      ${h.length ? `<ul class="history-list">${h.slice(0, 50).map((x) => `
+  const loc = P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`;
+  const fmt = (at) => new Date(at).toLocaleString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const monthOf = (at) => new Date(at).toLocaleString(loc, { month: 'long', year: 'numeric' });
+  let lastMonth = '';
+  const rows = h.slice(0, 80).map((x) => {
+    const m = monthOf(x.at);
+    const head = m !== lastMonth ? `<li class="month-head">${esc(m)}</li>` : '';
+    lastMonth = m;
+    return `${head}
         <li class="history-item">
           <span class="badge tone-${tone[x.status] || 'caution'}">${icon(ic[x.status] || 'info')}</span>
           <div class="grow"><p class="h-name">${esc(x.name)}</p><p class="h-meta">${esc(fmt(x.at))}</p><p class="h-tag tone-${tone[x.status] || 'caution'}">${esc(tr(`st_${x.status}`))}</p></div>
           <p class="h-amount">${esc(money(x.amount))}</p>
-        </li>`).join('')}</ul>` : empty('history', tr('history_empty'))}
+        </li>`;
+  }).join('');
+  render(`
+    <section class="screen">
+      <h1>${esc(tr('tile_history'))}</h1>
+      <button class="notice tone-pink" id="to-report">${icon('chart')}<span class="grow"><strong>${esc(tr('report_title'))}</strong><small>${esc(tr('tile_report_sub'))}</small></span>${icon('chevron')}</button>
+      ${h.length ? `<ul class="history-list">${rows}</ul>` : empty('history', tr('history_empty'))}
     </section>`, { top: 'back', nav: 'history', title: tr('tile_history') });
   announce(h.length ? h.slice(0, 3).map((x) => `${tr('amount_spoken', { amount: money(x.amount), name: x.name })}`).join('. ') : tr('history_empty'));
+  on('#to-report', 'click', () => go('report'));
 });
 
 const empty = (ic, text) => `<div class="empty">${icon(ic)}<p>${esc(text)}</p></div>`;
@@ -159,8 +193,9 @@ route('profile', () => {
     <section class="screen">
       <div class="profile-head">
         <div class="avatar big">${esc(initials(s.user.name))}</div>
-        <div><h1>${esc(s.user.name)}</h1>${s.user.phone ? `<p class="muted">+${esc(normalisePhone(s.user.phone))}</p>` : ''}</div>
+        <h1>${esc(s.user.name)}</h1>${s.user.phone ? `<p class="muted">+${esc(normalisePhone(s.user.phone))}</p>` : ''}
       </div>
+      <button class="list-row voice-row" id="r-voice" role="switch" aria-checked="${p.voiceOnly}"><span class="badge tone-green">${icon('mic')}</span><span class="grow">${esc(tr('opt_voiceOnly'))}<small class="row-sub">${esc(tr('voice_only_sub'))}</small></span><span class="switch" aria-hidden="true"><span></span></span></button>
       <details class="card" id="edit-box">
         <summary>${esc(tr('edit_profile'))}</summary>
         <label for="name">${esc(tr('name_label'))}</label>
@@ -186,6 +221,7 @@ route('profile', () => {
         ${row('r-lock', 'blue', 'lock', tr('lock_label'), lockLabel)}
         ${row('r-family', 'purple', 'family', tr('tile_family'), s.trusted[0]?.name || '')}
         ${row('r-shops', 'teal', 'store', tr('tile_shops'), String(s.savedShops.length))}
+        ${row('r-report', 'pink', 'chart', tr('report_title'), '')}
         ${row('r-access', 'amber', 'sliders', tr('tile_settings'), '')}
       </div>
       <details class="card">
@@ -208,6 +244,8 @@ route('profile', () => {
   on('#r-family', 'click', () => go('trusted'));
   on('#r-shops', 'click', () => go('shops'));
   on('#r-access', 'click', () => go('settings'));
+  on('#r-report', 'click', () => go('report'));
+  on('#r-voice', 'click', () => { store.updateProfile({ voiceOnly: !p.voiceOnly, voice: true, handsFree: true, screenReader: false }); applySettings(); rerender(); });
   on('#test', 'click', () => {
     const vpa = document.getElementById('vpa').value.trim();
     if (!vpa.includes('@')) { document.getElementById('vpa').focus(); return; }

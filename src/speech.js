@@ -90,22 +90,56 @@ export function speakWithHighlight(el, { lang = currentLang } = {}) {
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 export const canListen = Boolean(Recognition);
 
-/** Listen once; resolves with the transcript ('' on failure or timeout). */
-export function listenOnce({ lang = currentLang, timeoutMs = 7000 } = {}) {
-  if (!Recognition) return Promise.resolve('');
+let activeRec = null;
+export const isListening = () => Boolean(activeRec);
+
+/** Stop any listening in progress (screen changed, user tapped). */
+export function cancelListening() {
+  try { activeRec?.abort(); } catch {}
+  activeRec = null;
+}
+
+/**
+ * Listen once and return every guess the recogniser makes (up to 5), best first; [] on silence.
+ * A rising beep says "speak now", a falling beep says "got it", so a blind user knows when to talk.
+ */
+export function listenAll({ lang = currentLang, timeoutMs = 8000, beep = true } = {}) {
+  if (!Recognition) return Promise.resolve([]);
+  cancelListening();
   return new Promise((resolve) => {
     const rec = new Recognition();
-    rec.lang = LANGS[lang]?.speech || 'en-IN';
+    activeRec = rec;
+    rec.lang = LANGS[lang]?.speech || lang || 'en-IN';
     rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    rec.continuous = false;
+    rec.maxAlternatives = 5;
     let done = false;
-    const finish = (text) => { if (!done) { done = true; try { rec.stop(); } catch {} resolve(text); } };
-    rec.onresult = (e) => finish(e.results[0]?.[0]?.transcript || '');
-    rec.onerror = () => finish('');
-    rec.onend = () => finish('');
-    setTimeout(() => finish(''), timeoutMs);
-    try { rec.start(); } catch { finish(''); }
+    const finish = (list) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { rec.stop(); } catch {}
+      if (activeRec === rec) activeRec = null;
+      if (beep && list.length) playTone({ ms: 90, hz: 520, volume: 0.15 });
+      resolve(list);
+    };
+    rec.onresult = (e) => {
+      const r = e.results[0];
+      const list = [];
+      for (let i = 0; i < (r?.length || 0); i++) if (r[i].transcript) list.push(r[i].transcript);
+      finish(list);
+    };
+    rec.onerror = () => finish([]);
+    rec.onend = () => finish([]);
+    const timer = setTimeout(() => finish([]), timeoutMs);
+    const start = () => { try { rec.start(); } catch { finish([]); } };
+    if (beep) playTone({ ms: 110, hz: 880, volume: 0.15 }).then(start); else start();
   });
+}
+
+/** Listen once; resolves with the best transcript ('' on failure or timeout). */
+export async function listenOnce(opts = {}) {
+  return (await listenAll(opts))[0] || '';
 }
 
 /** A short 880 Hz tone for the hearing check. */

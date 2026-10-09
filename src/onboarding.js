@@ -6,21 +6,30 @@ import * as store from './store.js';
 import { deriveProfile, NEEDS, TOGGLES, START_PROFILE, normaliseProfile } from './profile.js';
 import { PAY_APPS } from './upi.js';
 import { biometricAvailable, registerBiometric, hashCode, newSalt } from './auth.js';
-import { speak, vibrate, BUZZ } from './speech.js';
+import { speak, vibrate, BUZZ, listenAll, canListen } from './speech.js';
+import { yesNo, normalise } from './spoken.js';
 import { icon } from './icons.js';
-import { route, go, replace, back, goHome, render, on, esc, tr, P, S, applySettings, announce } from './ui.js';
+import { route, go, replace, back, goHome, render, on, esc, tr, P, S, applySettings, announce, setVoice, screenId } from './ui.js';
 
 const TOTAL = 6;
 let draft = { needs: [], payApp: 'any' };
 const say = (text) => { if (!P().screenReader) speak(text, { lang: P().lang }); };
 const progress = (n) => `<div class="progress" role="progressbar" aria-valuemin="1" aria-valuemax="${TOTAL}" aria-valuenow="${n}"><span style="width:${(n / TOTAL) * 100}%"></span></div>`;
 
-const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 320 170" aria-hidden="true">
-  <circle cx="160" cy="92" r="78" fill="var(--tint-blue)"/>
-  <g><circle cx="92" cy="70" r="16" fill="var(--c-amber)"/><rect x="72" y="90" width="40" height="58" rx="18" fill="var(--c-blue)"/><path d="M60 150 l12 -38" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/></g>
-  <g><circle cx="160" cy="58" r="18" fill="var(--c-amber)"/><rect x="137" y="80" width="46" height="70" rx="20" fill="var(--c-green)"/><rect x="146" y="98" width="28" height="40" rx="6" fill="#fff"/><path d="M152 112h16M152 120h10" stroke="var(--c-green)" stroke-width="3" stroke-linecap="round"/></g>
-  <g><circle cx="228" cy="72" r="15" fill="var(--c-amber)"/><rect x="209" y="90" width="38" height="58" rx="17" fill="var(--c-purple)"/><rect x="243" y="96" width="14" height="22" rx="3" fill="var(--ink)"/></g>
-  <circle cx="268" cy="34" r="16" fill="var(--c-green)"/><path d="M261 34l5 5 9-10" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 360 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf3df"/><stop offset="1" stop-color="#f3efe2"/></linearGradient></defs>
+  <rect width="360" height="200" fill="url(#sky)"/>
+  <circle cx="276" cy="58" r="26" fill="#ffd98a" opacity=".85"/>
+  <path d="M0 150 C60 112 130 128 190 116 C250 104 300 118 360 104 V200 H0Z" fill="#cfe3d3"/>
+  <path d="M0 170 C80 146 170 160 250 148 C300 141 330 146 360 140 V200 H0Z" fill="#a9cdb3"/>
+  <g transform="translate(46 70)"><rect x="18" y="40" width="10" height="64" rx="4" fill="#8a6a4f"/><circle cx="23" cy="34" r="32" fill="#7fb38f"/><circle cx="2" cy="50" r="20" fill="#93c3a1"/><circle cx="44" cy="48" r="22" fill="#6ea883"/></g>
+  <g transform="translate(150 112)">
+    <rect x="0" y="28" width="104" height="8" rx="3" fill="#9a7457"/><rect x="0" y="14" width="104" height="7" rx="3" fill="#b08868"/>
+    <rect x="8" y="36" width="6" height="22" fill="#7d5d45"/><rect x="90" y="36" width="6" height="22" fill="#7d5d45"/>
+    <circle cx="34" cy="-6" r="11" fill="#f0c9a5"/><path d="M23 -8 a11 11 0 0 1 22 0 c-4 -6 -18 -6 -22 0z" fill="#f4f1ec"/><rect x="21" y="5" width="26" height="26" rx="10" fill="#c9877a"/>
+    <circle cx="70" cy="-8" r="11" fill="#e9bf98"/><path d="M59 -10 a11 11 0 0 1 22 0 c-2 -8 -20 -8 -22 0z" fill="#dcdcdc"/><rect x="57" y="3" width="27" height="28" rx="10" fill="#5f87a8"/>
+    <rect x="44" y="14" width="16" height="10" rx="3" fill="#2f3b36"/><rect x="46" y="16" width="12" height="6" rx="1.5" fill="#9fd3b4"/>
+  </g>
 </svg>`;
 
 // ---------- Welcome ----------
@@ -29,18 +38,108 @@ route('welcome', () => {
   applySettings();
   render(`
     <section class="screen welcome">
+      <div class="welcome-hero">${WELCOME_ART}</div>
       <div class="brand-lockup"><span class="logo big" aria-hidden="true"></span><h1 class="hero-title">${esc(tr('app_name'))}</h1></div>
       <p class="hero-sub">${esc(tr('tagline'))}</p>
-      ${WELCOME_ART}
       <p class="readable muted center">${esc(tr('intro'))}</p>
-      <div class="lang-grid" role="group" aria-label="${esc(tr('choose_lang'))}">
-        ${Object.entries(LANGS).map(([code, l]) => `<button class="chip ${P().lang === code ? 'is-on' : ''}" data-lang="${code}" aria-pressed="${P().lang === code}" lang="${code}">${esc(l.label)}</button>`).join('')}
+      <div class="lang-list" role="radiogroup" aria-label="${esc(tr('choose_lang'))}">
+        <p class="label">${icon('globe')} ${esc(tr('choose_lang'))}</p>
+        ${Object.entries(LANGS).map(([code, l]) => `<button class="lang-row ${P().lang === code ? 'is-on' : ''}" role="radio" data-lang="${code}" aria-checked="${P().lang === code}" lang="${code}"><span class="grow">${esc(l.label)}</span><span class="lang-check">${icon('check')}</span></button>`).join('')}
       </div>
       <button class="btn big primary wide" id="start" data-next>${esc(tr('get_started'))}</button>
+      ${canListen ? `<button class="btn big wide voice-start" id="by-voice">${icon('mic')}<span>${esc(tr('voice_setup'))}</span></button>` : ''}
     </section>`, { top: null, title: tr('app_name') });
   say(`${tr('choose_lang')}. ${tr('intro')}`);
   on('[data-lang]', 'click', (e) => { store.updateProfile({ lang: e.currentTarget.dataset.lang }); applySettings(); replace('welcome'); });
   on('#start', 'click', () => go('signup'));
+  on('#by-voice', 'click', () => go('voice-setup'));
+});
+
+// ---------- Set up by voice (for someone who cannot see the screen) ----------
+const LANG_WORDS = {
+  ml: ['malayalam', 'മലയാളം', 'മലയാള', 'मलयालम', 'மலையாளம்'],
+  en: ['english', 'ഇംഗ്ലീഷ്', 'इंग्लिश', 'अंग्रेजी', 'அங்கிலம்', 'ஆங்கிலம்', 'இங்கிலீஷ்'],
+  hi: ['hindi', 'ഹിന്ദി', 'हिंदी', 'हिन्दी', 'இந்தி', 'ஹிந்தி'],
+  ta: ['tamil', 'തമിഴ്', 'तमिल', 'தமிழ்'],
+};
+const LANG_PROMPT = { ml: 'ഭാഷ പറയൂ: മലയാളം', en: 'Say your language: English', hi: 'अपनी भाषा बोलिए: हिंदी', ta: 'உங்கள் மொழியைச் சொல்லுங்கள்: தமிழ்' };
+
+route('voice-setup', () => {
+  render(`
+    <section class="screen center voice-setup">
+      <div class="voice-hero"><span class="voice-orb big">${icon('mic')}</span></div>
+      <h1>${esc(tr('voice_setup'))}</h1>
+      <p class="readable muted" id="vs-status">${esc(tr('vs_intro'))}</p>
+      <p class="vs-heard" id="vs-heard" aria-live="polite"></p>
+      <button class="btn wide" id="vs-screen">${esc(tr('vs_use_screen'))}</button>
+    </section>`, { top: 'back', title: tr('voice_setup') });
+  setVoice({ own: true });
+  const gen = screenId();
+  const status = document.getElementById('vs-status');
+  const heardEl = document.getElementById('vs-heard');
+  const live = () => gen === screenId();
+  on('#vs-screen', 'click', () => replace('welcome'));
+
+  async function askVoice(question, accept, { lang = P().lang } = {}) {
+    for (let i = 0; i < 3 && live(); i += 1) {
+      status.textContent = question;
+      await speak(i ? `${tr('vm_try_again')} ${question}` : question, { lang });
+      if (!live()) return null;
+      const alts = await listenAll({ lang });
+      if (!live()) return null;
+      heardEl.textContent = alts[0] || '';
+      const v = alts.length ? accept(alts) : null;
+      if (v !== null && v !== undefined) return v;
+    }
+    return null;
+  }
+  const yes = (alts) => yesNo(alts);
+
+  (async () => {
+    // 1. Language: each option spoken in its own language, heard in Indian English (all names are recognised).
+    let lang = null;
+    for (let i = 0; i < 2 && !lang && live(); i += 1) {
+      for (const [code, text] of Object.entries(LANG_PROMPT)) { if (!live()) return; status.textContent = text; await speak(text, { lang: code }); }
+      const alts = await listenAll({ lang: 'en' });
+      if (!live()) return;
+      heardEl.textContent = alts[0] || '';
+      lang = Object.keys(LANG_WORDS).find((code) => alts.some((a) => LANG_WORDS[code].some((w) => a.toLowerCase().includes(w))));
+    }
+    if (!live()) return;
+    lang = lang || P().lang;
+    store.updateProfile(deriveProfile({ lang, needs: ['blind'] }));
+    applySettings();
+    // 2. Name
+    let name = null;
+    while (live() && !name) {
+      const heard = await askVoice(tr('vs_name_q'), (a) => a[0].trim());
+      if (heard === null) break;
+      const ok = await askVoice(tr('vs_name_ok', { name: heard }), yes);
+      if (ok === 'yes') name = heard;
+    }
+    if (!live()) return;
+    if (!name) { await speak(tr('vs_fail')); if (live()) replace('signup'); return; }
+    store.update({ user: { name, phone: '', helper: false } });
+    // 3. A family member's number (optional)
+    const num = await askVoice(tr('vs_family_q'), (a) => {
+      if (yesNo(a) === 'no') return 'skip';
+      const d = a.map((x) => normalise(x).replace(/\D/g, '')).find((x) => x.length >= 10);
+      return d || null;
+    });
+    if (!live()) return;
+    if (num && num !== 'skip') {
+      const spaced = num.slice(-10).split('').join(' ');
+      const ok = await askVoice(tr('vs_number_ok', { num: spaced }), yes);
+      if (ok === 'yes') {
+        const who = await askVoice(tr('vs_family_name'), (a) => a[0].trim());
+        store.addTrusted({ name: who || tr('family_default'), phone: num.slice(-10), relation: '' });
+      }
+    }
+    if (!live()) return;
+    store.update({ setupDone: true, lock: { type: 'none', credId: null, codeHash: null, salt: null } });
+    await speak(tr('vs_done', { name }));
+    if (live()) goHome();
+  })();
 });
 
 // ---------- 1. Who and name ----------
@@ -78,8 +177,8 @@ route('signup', () => {
 });
 
 // ---------- 2. Needs ----------
-const NEED_ICON = { seeing: 'eye', screenreader: 'talkback', reading: 'book', colour: 'palette', hands: 'hand', hearing: 'ear', simple: 'sprout', listen: 'speaker' };
-const NEED_TONE = { seeing: 'blue', screenreader: 'blue', reading: 'purple', colour: 'pink', hands: 'amber', hearing: 'teal', simple: 'green', listen: 'purple' };
+const NEED_ICON = { blind: 'mic', seeing: 'eye', screenreader: 'talkback', reading: 'book', colour: 'palette', hands: 'hand', hearing: 'ear', simple: 'sprout', listen: 'speaker' };
+const NEED_TONE = { blind: 'green', seeing: 'blue', screenreader: 'blue', reading: 'purple', colour: 'pink', hands: 'amber', hearing: 'teal', simple: 'green', listen: 'purple' };
 
 route('needs', () => {
   const picked = new Set(draft.needs);

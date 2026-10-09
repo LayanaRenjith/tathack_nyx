@@ -16,7 +16,7 @@ That check is visual. People who can't read the screen either pay blind or hand 
 1. Open Sahaaya (fingerprint, face or code) and tap **Scan & pay safely**. For low-vision and TalkBack users the scanner opens straight away.
 2. Scan the shop's QR. The phone vibrates faster as the code gets closer.
 3. Hear the result, then say or type the amount.
-4. Hold to pay. Google Pay (or PhonePe, Paytm, BHIM) opens with everything filled in; the PIN is entered there.
+4. **Final check:** one screen shows the amount, the shop and its account. The user taps "Yes, pay", says "yes", or says the amount again. If the amount said doesn't match ("2500" for a ₹250 payment), the payment is cancelled. Then Google Pay (or PhonePe, Paytm, BHIM) opens with everything filled in; the PIN is entered there.
 
 | What the QR is | What Sahaaya says |
 |---|---|
@@ -32,6 +32,7 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 
 | Need ticked at setup | What changes |
 |---|---|
+| Can't see the screen | **Full voice control:** Sahaaya speaks every screen and then listens. No buttons needed. Tap anywhere (or double-tap) to talk |
 | Hard to see | Larger text, black-and-yellow contrast, everything spoken, vibration guides the camera, scanner opens on start, hands-free mode |
 | Uses TalkBack | Sahaaya stays quiet and lets TalkBack read everything; hands-free mode on |
 | Reading is hard | Easy-reading font, wider spacing, words highlighted as they are read aloud |
@@ -40,13 +41,19 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 | Hard to hear | Flashing and vibrating warnings; no speech needed |
 | New to smartphones | Simple screens, slower speech, a pointer on the next step |
 
-**Hands-free mode (for blind users):** after the scan, Sahaaya asks for the amount, the user says it, Sahaaya asks "Pay 250 to Lakshmi Bakery? Say yes", and the UPI app opens. Works in Malayalam, English, Hindi and Tamil.
+**Full voice control (for blind users):** setup can be done entirely by voice ("Set up by voice": language, name, a family member's number). After that every screen is spoken and Sahaaya listens for what to do next: "pay", "report", "how much did I spend", "call my son", "read", "help", "back". A payment is: "pay" → scan (beeps rise in pitch as the QR comes into view, with spoken tips) → hear the result → say the amount → "right?" → final check → the UPI app opens. On a swapped QR it says "scan again, tell family, or continue".
+
+**Understanding speech in four languages, offline:** amounts in digits of any script and in words, including Indian forms: "two fifty", "dhai sau", "साढ़े तीन सौ", "ഇരുന്നൂറ്റി അമ്പത്", "இருநூற்று ஐம்பது". Commands and yes/no match on word stems (Malayalam and Tamil word endings change), allow small English typos, include the English words people mix in ("scan", "report"), and are checked against all of the recogniser's guesses. Screen-specific words are tried before app-wide ones. Rising and falling beeps say when Sahaaya is listening.
 
 **Learns as you use it:** if taps keep missing buttons or repeating, Sahaaya offers bigger buttons. Voice commands work on every screen.
 
 ## Family and limits
 
 A trusted person (son, daughter, neighbour) is added at setup with their WhatsApp number, plus a per-payment and a daily limit. A payment over a limit is held until the user sends the prepared WhatsApp or SMS ("Ammini wants to pay ₹3,000 to Lakshmi Bakery. Is this OK?"). A swapped QR offers "Tell Raju about this QR". Messages go through the user's own WhatsApp/SMS, so no server is needed.
+
+## Monthly report
+
+The Report tab shows the month's total, the last six months as a bar chart, where the money went (shop by shop), and how many fake QR codes were stopped. "Send to Ravi" shares it on WhatsApp. At the start of a month, the home screen reminds the user to send last month's report.
 
 ## App lock
 
@@ -82,9 +89,13 @@ On a phone the camera needs HTTPS: deploy the folder to any static host (Netlify
 ```
 index.html, styles.css   App shell and design system (profile applied via CSS variables)
 src/app.js               Start-up, lock, voice commands, Android back button
-src/onboarding.js        First-run setup: name, needs, payment app, preview, lock, trusted person, shops
-src/home.js              Lock screen, dashboard, history, shops, trusted people, profile, accessibility
-src/pay.js               Scan → Check → Amount → Pay, hands-free voice, family limits; add a shop
+src/onboarding.js        First-run setup (on screen or entirely by voice): name, needs, payment app, preview, lock, trusted person, shops
+src/home.js              Lock screen, dashboard, history by month, shops, trusted people, profile, accessibility
+src/pay.js               Scan → Check → Amount → Final check → Pay, voice payments, family limits; add a shop
+src/report.js            Monthly totals, per-shop breakdown, six-month trend
+src/report-screen.js     Report screen and WhatsApp sharing
+src/spoken.js            Amounts, yes/no and phrase matching in Malayalam, English, Hindi, Tamil
+src/commands.js          Voice commands in four languages
 src/auth.js              Fingerprint/face (WebAuthn) and 4-digit code lock
 src/family.js            Trusted people, WhatsApp/SMS alerts, payment limits
 src/lang/                English, Malayalam, Hindi, Tamil
@@ -96,7 +107,7 @@ src/upi.js               UPI QR parsing, standard and app-specific payment links
 src/scanner.js           Camera QR scanning with vibration guidance
 src/speech.js            Speech out/in, word highlighting, vibration
 src/keypad.js            Tremor-tolerant keypad
-src/match.js, amount.js, commands.js, i18n.js, store.js, ui.js, demo-codes.js, adapt.js
+src/match.js, amount.js, i18n.js, store.js, ui.js, demo-codes.js, adapt.js
 tests/                   Node test runner
 ```
 

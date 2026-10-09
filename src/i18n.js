@@ -25,14 +25,5 @@ export function missingKeys() {
   return Object.keys(STRINGS).flatMap((l) => keys.filter((k) => !(k in STRINGS[l])).map((k) => `${l}.${k}`));
 }
 
-/** Words that mean "yes" / "no" in each language, for hands-free confirmation. */
-export const YES_WORDS = ['yes', 'yeah', 'ok', 'okay', 'pay', 'sure', 'അതെ', 'ശരി', 'ഉവ്വ്', 'हाँ', 'हां', 'जी', 'ठीक', 'ஆம்', 'சரி', 'ஆமா'];
-export const NO_WORDS = ['no', 'stop', 'cancel', 'wait', 'ഇല്ല', 'വേണ്ട', 'നിർത്ത', 'नहीं', 'नही', 'रुको', 'இல்லை', 'வேண்டாம்', 'நிறுத்து'];
-
-export function yesNo(transcript) {
-  const t_ = ` ${(transcript || '').toLowerCase().trim()} `;
-  const hit = (w) => (/^[a-z]+$/.test(w) ? new RegExp(`\\b${w}\\b`).test(t_) : t_.includes(w));
-  if (NO_WORDS.some(hit)) return 'no';
-  if (YES_WORDS.some(hit)) return 'yes';
-  return null;
-}
+// Yes / no in all four languages lives with the rest of the speech understanding.
+export { yesNo } from './spoken.js';

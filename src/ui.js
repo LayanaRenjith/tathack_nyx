@@ -3,10 +3,11 @@
 
 import { t } from './i18n.js';
 import * as store from './store.js';
-import { applyProfile, speaks } from './profile.js';
+import { applyProfile, speaks, voiceDriven } from './profile.js';
+import { parseCommand } from './commands.js';
 import { createTapWatcher } from './adapt.js';
 import { icon } from './icons.js';
-import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate } from './speech.js';
+import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen } from './speech.js';
 
 const routes = {};
 const stack = [];
@@ -72,9 +73,14 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   cleanup?.();
   cleanup = null;
   stopSpeaking();
+  cancelListening();
+  screenGen += 1;
+  screenVoice = { actions: {}, help: '', own: false };
+  const vm = voiceDriven(P()) && canListen;
+  autoListenPending = vm;
   const topHtml = top === 'back' ? backBar(title) : top === 'brand' ? brandBar() : '';
-  root().innerHTML = `${topHtml}${step ? steps(step) : ''}<div class="content">${html}</div>${nav ? navBar(nav) : ''}`;
-  document.body.classList.toggle('has-nav', Boolean(nav));
+  root().innerHTML = `${topHtml}${step ? steps(step) : ''}<div class="content">${html}</div>${vm ? voiceBar() : nav ? navBar(nav) : ''}`;
+  document.body.classList.toggle('has-nav', Boolean(nav) || vm);
   const h = root().querySelector('.content h1, .content h2');
   if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
   document.title = title ? `${title} · ${tr('app_name')}` : tr('app_name');
@@ -82,6 +88,7 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   if (P().simple) root().querySelector('[data-next]')?.classList.add('point-here');
   on('[data-bar="back"]', 'click', back);
   on('[data-bar="voice"]', 'click', () => window.dispatchEvent(new Event('sahaaya:voice')));
+  on('.voice-bar', 'click', () => voiceTurn());
   on('[data-nav]', 'click', (e) => {
     const target = e.currentTarget.dataset.nav;
     if (target === 'home') goHome(); else { stack.length = 0; replace(target); }
@@ -106,8 +113,12 @@ function brandBar() {
 }
 
 function navBar(active) {
-  const item = (key, ic) => `<button class="nav-item ${active === key ? 'is-active' : ''}" data-nav="${key}" ${active === key ? 'aria-current="page"' : ''}>${icon(ic)}<span>${esc(tr(key))}</span></button>`;
-  return `<nav class="bottomnav" aria-label="Main">${item('home', 'home')}${item('history', 'history')}${item('profile', 'user')}</nav>`;
+  const item = (key, ic, label) => `<button class="nav-item ${active === key ? 'is-active' : ''}" data-nav="${key}" ${active === key ? 'aria-current="page"' : ''}><span class="nav-ic">${icon(ic)}</span><span>${esc(tr(label))}</span></button>`;
+  return `<nav class="bottomnav" aria-label="Main">${item('home', 'home', 'home')}${item('history', 'history', 'nav_payments')}${item('report', 'chart', 'nav_report')}${item('profile', 'user', 'profile')}</nav>`;
+}
+
+function voiceBar() {
+  return `<button class="voice-bar" aria-label="${esc(tr('vm_tap'))}"><span class="voice-orb">${icon('mic')}</span><span class="voice-text">${esc(tr('vm_tap'))}</span></button>`;
 }
 
 function steps(n) {
@@ -125,15 +136,74 @@ export function announce(text, { force = false } = {}) {
   const live = document.getElementById('live');
   if (live) { live.textContent = ''; setTimeout(() => { live.textContent = text; }, 30); }
   const p = P();
-  if (speaks(p) || (force && !p.screenReader)) return speak(text);
-  return Promise.resolve();
+  const gen = screenGen;
+  const done = (speaks(p) || (force && !p.screenReader)) ? (cancelListening(), speak(text)) : Promise.resolve();
+  // Full voice control: once the screen has been read out, start listening for what to do next.
+  if (autoListenPending) {
+    autoListenPending = false;
+    done.then(() => { if (gen === screenGen && !screenVoice.own) voiceTurn(); });
+  }
+  return done;
+}
+
+// ---------- Full voice control ----------
+let screenGen = 0;
+let screenVoice = { actions: {}, help: '', own: false };
+let autoListenPending = false;
+let globalHandler = null;
+export const screenId = () => screenGen;
+
+/**
+ * What this screen understands by voice.
+ * @param {object} o
+ * @param {Record<string, Function>} [o.actions]  screen commands (keys from COMMANDS) to handlers
+ * @param {string} [o.help]  what to say when the user asks for help or isn't understood
+ * @param {boolean} [o.own]  the screen runs its own spoken conversation; don't auto-listen
+ */
+export function setVoice(o) { screenVoice = { ...screenVoice, ...o }; }
+export function onGlobalCommand(fn) { globalHandler = fn; }
+export const voiceHelp = () => screenVoice.help || tr(current?.name === 'home' ? 'vm_help_home' : 'vm_help');
+
+/** Run one heard phrase: screen commands first, then the app-wide ones. True if understood. */
+export async function handleHeard(alternatives) {
+  const keys = Object.keys(screenVoice.actions);
+  const local = keys.length ? parseCommand(alternatives, keys) : null;
+  if (local) { await screenVoice.actions[local](alternatives); return local; }
+  const cmd = parseCommand(alternatives);
+  if (cmd && globalHandler) { const ok = await globalHandler(cmd, alternatives); if (ok !== false) return cmd; }
+  return null;
+}
+
+const QUIET_AFTER = new Set(['stop', 'voiceOff', 'call', 'send', 'tell']);
+
+/** Listen, act, and keep the conversation going while the screen stays the same. */
+export async function voiceTurn({ retries = 2 } = {}) {
+  if (!canListen) return;
+  const gen = screenGen;
+  const bar = document.querySelector('.voice-bar');
+  for (let i = 0; i <= retries; i += 1) {
+    bar?.classList.add('is-listening');
+    const heard = await listenAll({ lang: P().lang });
+    bar?.classList.remove('is-listening');
+    if (gen !== screenGen) return;
+    if (heard.length) {
+      const cmd = await handleHeard(heard);
+      if (gen !== screenGen) return;           // moved to another screen; it will listen itself
+      if (cmd) { if (!QUIET_AFTER.has(cmd) && voiceDriven(P())) { i = -1; continue; } return; }
+    }
+    if (i < retries) await speak(i === 0 ? tr('vm_try_again') : voiceHelp());
+    if (gen !== screenGen) return;
+  }
+  bar?.classList.add('is-paused');
+  if (speaks(P())) speak(tr('vm_paused'));
 }
 
 export function readScreen() {
   const target = root().querySelector('.readable') || root().querySelector('h1');
-  if (!target) return;
-  if (P().dyslexiaFont) speakWithHighlight(target);
-  else speak(target.textContent);
+  if (!target) return Promise.resolve();
+  cancelListening();
+  if (P().dyslexiaFont) return speakWithHighlight(target);
+  return speak(voiceDriven(P()) ? `${target.textContent}. ${voiceHelp()}` : target.textContent);
 }
 
 export function alertUser(pattern) {

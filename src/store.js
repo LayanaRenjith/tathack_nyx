@@ -16,6 +16,7 @@ const fresh = () => ({
   savedShops: [],                               // { name, vpa, usualAmount }
   history: [],                                  // { name, vpa, amount, status, at }
   largeLimit: 2000,
+  reportsSent: {},                              // { '2026-09': timestamp }
 });
 
 let memory = null;

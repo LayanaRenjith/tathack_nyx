@@ -3,7 +3,7 @@
 // While a QR is in view, the phone ticks faster as the code gets bigger and more centred,
 // so the user can find it without seeing the screen.
 
-import { BUZZ, vibrate } from './speech.js';
+import { playTone, BUZZ, vibrate } from './speech.js';
 
 const JSQR_SOURCES = [
   './vendor/jsQR.js', // offline copy: run `npm run vendor` once
@@ -88,7 +88,7 @@ export function guidanceScore(box, frameW, frameH) {
  * Start scanning into a <video>. Calls onResult(text) once a code has been read
  * on two frames in a row (avoids half-read stickers). Returns stop().
  */
-export async function startScanner(video, { onResult, onGuidance, guidance = true } = {}) {
+export async function startScanner(video, { onResult, onGuidance, guidance = true, sound = false } = {}) {
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
     audio: false,
@@ -115,6 +115,7 @@ export async function startScanner(video, { onResult, onGuidance, guidance = tru
       // Tick interval shrinks from ~700ms (far) to ~120ms (close).
       if (guidance && now - lastTick > 700 - score * 580) {
         vibrate(BUZZ.tick);
+        if (sound) playTone({ ms: 45, hz: 480 + score * 760, volume: 0.12 }); // pitch rises as the QR comes into place
         lastTick = now;
       }
       if (hit.text === lastText && score >= 0.25) {
