@@ -1,12 +1,13 @@
 // Practise voice commands safely: nothing is paid. Each step says what to try, listens, and
 // tells the user what Sahaaya understood, so they learn the words that work for their voice.
 
-import { listenAll, speak, canListen, BUZZ, vibrate } from './speech.js';
+import { listenAll, speak, canListen, BUZZ, vibrate, ensureMic } from './speech.js';
+import { listenLangFor } from './profile.js';
 import { parseCommand } from './commands.js';
 import { amountFrom, yesNo } from './spoken.js';
 import { formatRupees } from './amount.js';
 import { icon } from './icons.js';
-import { route, render, on, esc, tr, P, goHome, setVoice, screenId } from './ui.js';
+import { route, render, on, esc, tr, P, goHome, setVoice, screenId, explainMicProblem } from './ui.js';
 
 const STEPS = [
   { say: 'pr_step_pay', ok: (h) => parseCommand(h) === 'pay', good: () => 'pr_good_pay' },
@@ -34,6 +35,8 @@ route('voice-practice', () => {
 
   const run = async () => {
     if (!canListen) { heardEl.textContent = tr('no_listen'); return; }
+    const mic = await ensureMic();
+    if (mic !== 'ok') { heardEl.textContent = tr(mic === 'not-allowed' ? 'mic_blocked' : 'mic_busy'); speak(heardEl.textContent); return; }
     document.getElementById('start').hidden = true;
     for (let i = 0; i < STEPS.length && gen === screenId(); i += 1) {
       const li = document.querySelector(`[data-step="${i}"]`);
@@ -43,8 +46,9 @@ route('voice-practice', () => {
         await speak(tryNo ? `${tr('vm_try_again')} ${tr(STEPS[i].say)}` : tr(STEPS[i].say));
         if (gen !== screenId()) return;
         orb.classList.add('is-listening');
-        const heard = await listenAll({ lang: P().lang, onInterim: (t) => { heardEl.textContent = `“${t}…”`; } });
+        const heard = await listenAll({ lang: listenLangFor(P(), tryNo), onInterim: (t) => { heardEl.textContent = `“${t}…”`; } });
         orb.classList.remove('is-listening');
+        if (!heard.length && (await explainMicProblem())) { heardEl.textContent = document.getElementById('live')?.textContent || ''; return; }
         heardEl.textContent = heard[0] ? `“${heard[0]}”` : '';
         if (heard.length && STEPS[i].ok(heard)) {
           passed = true;

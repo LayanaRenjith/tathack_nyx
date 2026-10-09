@@ -18,26 +18,28 @@ export const DEFAULT_PROFILE = {
   tremorSafe: false,    // tremor-tolerant keypad, hold-to-pay
   visualAlerts: false,  // flash + vibrate for warnings
   payApp: 'any',
-  voiceName: '',        // chosen text-to-speech voice ('' = best available)
+  voiceName: '',
+  listenLang: 'auto',   // 'auto' = my language, then Indian English on a retry | 'own' | 'en'
+  slowSpeech: false,    // wait longer after a pause before deciding the user has finished        // chosen text-to-speech voice ('' = best available)
   font: 'standard',     // 'standard' | 'easy' (Atkinson Hyperlegible) | 'dyslexic' (OpenDyslexic)
 };
 
 /** First run: big, clear and spoken, so anyone can start. */
-export const START_PROFILE = { ...DEFAULT_PROFILE, textScale: 1.15, bigTargets: true, voice: true };
+export const START_PROFILE = { ...DEFAULT_PROFILE, textScale: 1.15, bigTargets: true, voice: true, slowSpeech: true };
 
 export const NEEDS = ['blind', 'seeing', 'screenreader', 'reading', 'colour', 'hands', 'hearing', 'simple', 'listen'];
 
 export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) {
   const has = (n) => needs.includes(n);
   const p = { ...DEFAULT_PROFILE, lang, payApp };
-  if (has('blind')) Object.assign(p, { voiceOnly: true, voice: true, handsFree: true, bigTargets: true, textScale: 1.3, speechRate: 0.95 });
+  if (has('blind')) Object.assign(p, { slowSpeech: true, voiceOnly: true, voice: true, handsFree: true, bigTargets: true, textScale: 1.3, speechRate: 0.95 });
   if (has('seeing')) Object.assign(p, { textScale: 1.5, contrast: true, bigTargets: true, voice: true, handsFree: true, openScanner: true });
   if (has('screenreader')) Object.assign(p, { screenReader: true, voiceOnly: false, voice: false, handsFree: true, openScanner: true, bigTargets: true });
   if (has('reading')) Object.assign(p, { dyslexiaFont: true, font: 'dyslexic', voice: !p.screenReader, textScale: Math.max(p.textScale, 1.15) });
   if (has('colour')) p.colourSafe = true;
   if (has('hands')) Object.assign(p, { tremorSafe: true, bigTargets: true });
   if (has('hearing')) p.visualAlerts = true;
-  if (has('simple')) Object.assign(p, { simple: true, bigTargets: true, tremorSafe: true, textScale: Math.max(p.textScale, 1.25), speechRate: 0.85 });
+  if (has('simple')) Object.assign(p, { slowSpeech: true, simple: true, bigTargets: true, tremorSafe: true, textScale: Math.max(p.textScale, 1.25), speechRate: 0.85 });
   if (has('listen') && !p.screenReader) p.voice = true;
   if (has('hearing') && !has('listen') && !has('seeing')) { p.voice = false; p.handsFree = false; }
   return p;
@@ -71,4 +73,12 @@ export function normaliseProfile(p) {
   const out = { ...DEFAULT_PROFILE };
   for (const k of Object.keys(DEFAULT_PROFILE)) if (k in p) out[k] = p[k];
   return out;
+}
+
+/** Which language to listen in on this try: own language first, then Indian English, which recognises
+ *  commands, numbers and Indian names well and catches what a weaker Malayalam/Tamil recogniser missed. */
+export function listenLangFor(p, attempt = 0) {
+  if (p.listenLang === 'en') return 'en';
+  if (p.listenLang === 'auto' && p.lang !== 'en' && attempt % 2 === 1) return 'en';
+  return p.lang;
 }

@@ -9,7 +9,7 @@ import { checkPayment, checkAmount, pauseSeconds, LEVEL, STATUS } from './safety
 import { rupeesInWords, formatRupees } from './amount.js';
 import { overLimit, whatsappLink, smsLink } from './family.js';
 import { yesNo, amountFrom, spokenDigits } from './spoken.js';
-import { speaks, voiceDriven } from './profile.js';
+import { speaks, voiceDriven, listenLangFor } from './profile.js';
 import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, listenAll, canListen, BUZZ, vibrate, speak } from './speech.js';
@@ -19,7 +19,7 @@ import { normalisePhone } from './family.js';
 import { parseCommand } from './commands.js';
 import { DEMO_QRS } from './demo-codes.js';
 import { icon } from './icons.js';
-import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setCleanup, readScreen, setVoice, screenId, voiceTurn } from './ui.js';
+import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setCleanup, readScreen, setVoice, screenId, voiceTurn, explainMicProblem } from './ui.js';
 
 const RESULT_ICON = { ok: 'check', caution: 'info', danger: 'stop' };
 const BUZZ_FOR = { ok: BUZZ.ok, caution: BUZZ.caution, danger: BUZZ.danger };
@@ -39,8 +39,9 @@ async function ask(question, accept, gen = screenId(), { askedAlready = false } 
   for (let i = 0; i < 3; i += 1) {
     if (i > 0 || !askedAlready) await sayAndWait(i === 0 ? question : `${tr('vm_try_again')} ${question}`);
     if (gen !== screenId()) return null;
-    const heard = await listenAll({ lang: P().lang });
+    const heard = await listenAll({ lang: listenLangFor(P(), i) });
     if (gen !== screenId()) return null;
+    if (!heard.length && (await explainMicProblem())) return [];
     if (heard.length && accept(heard)) return heard;
   }
   return [];
@@ -368,7 +369,7 @@ route('result', (qr) => {
     codeEl?.addEventListener('input', () => { if (codeEl.value.replace(/\D/g, '').length === 6) tryCode(codeEl.value); });
     familyBox.querySelector('#g-say')?.addEventListener('click', async () => {
       announce(tr('listening'));
-      const d = spokenDigits(await listenAll({ lang: P().lang }));
+      const d = spokenDigits(await listenAll({ lang: listenLangFor(P(), 0) })) || spokenDigits(await listenAll({ lang: 'en' }));
       if (d) { codeEl.value = d.slice(0, 6); tryCode(codeEl.value); } else announce(tr('hf_not_heard'), { force: true });
     });
     familyBox.querySelector('#g-pin-ok')?.addEventListener('click', async () => {
@@ -414,7 +415,8 @@ route('result', (qr) => {
 
   on('#say', 'click', async () => {
     announce(tr('listening'));
-    const n = amountFrom(await listenAll({ lang: P().lang }));
+    let n = amountFrom(await listenAll({ lang: listenLangFor(P(), 0) }));
+    if (!n && !(await explainMicProblem()) && listenLangFor(P(), 1) !== listenLangFor(P(), 0)) { announce(tr('vm_try_again')); n = amountFrom(await listenAll({ lang: 'en' })); }
     if (n) { pad.set(String(Math.round(n))); announce(tr('amount_spoken', { amount: money(n), name: check.shopName })); }
     else announce(tr('hf_not_heard'), { force: true });
   });

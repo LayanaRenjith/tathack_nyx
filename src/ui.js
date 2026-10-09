@@ -3,11 +3,11 @@
 
 import { t } from './i18n.js';
 import * as store from './store.js';
-import { applyProfile, speaks, voiceDriven } from './profile.js';
+import { applyProfile, speaks, voiceDriven, listenLangFor } from './profile.js';
 import { parseCommand } from './commands.js';
 import { createTapWatcher } from './adapt.js';
 import { icon } from './icons.js';
-import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName } from './speech.js';
+import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName, setPauseMs, setHolding, finishListening, isListening, listenError } from './speech.js';
 
 const routes = {};
 const stack = [];
@@ -59,6 +59,7 @@ export function applySettings() {
   setSpeechLang(p.lang);
   setSpeechRate(p.speechRate);
   setVoiceName(p.voiceName);
+  setPauseMs(p.slowSpeech ? 2800 : 1800);
 }
 
 /**
@@ -95,8 +96,8 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   }
   on('[data-bar="back"]', 'click', back);
   on('[data-bar="size"]', 'click', cycleTextSize);
-  on('[data-bar="voice"]', 'click', () => window.dispatchEvent(new Event('sahaaya:voice')));
-  on('.voice-bar', 'click', () => { stopSpeaking(); voiceTurn(); });
+  root().querySelectorAll('[data-bar="voice"]').forEach((b) => wireHoldToTalk(b, () => window.dispatchEvent(new Event('sahaaya:voice'))));
+  root().querySelectorAll('.voice-bar').forEach((b) => wireHoldToTalk(b, () => voiceTurn()));
   const hint = root().querySelector('.voice-hint');
   if (hint) hint.textContent = voiceHelp();
   on('[data-nav]', 'click', (e) => {
@@ -233,6 +234,48 @@ export async function handleHeard(alternatives) {
   return null;
 }
 
+/** Say clearly why the microphone isn't working instead of failing silently. True if listening can't work now. */
+export async function explainMicProblem() {
+  const key = { 'not-allowed': 'mic_blocked', 'service-not-allowed': 'mic_blocked', network: 'mic_network', 'audio-capture': 'mic_busy', busy: 'mic_busy', unsupported: 'no_listen' }[listenError()];
+  if (!key) return false;
+  const live = document.getElementById('live');
+  if (live) live.textContent = tr(key);
+  showToast(tr(key));
+  if (!P().screenReader) await speak(tr(key));
+  return true;
+}
+
+export function showToast(text) {
+  document.querySelector('.toast')?.remove();
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.setAttribute('role', 'alert');
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 7000);
+}
+
+// Hold-to-talk: press and hold the mic while speaking, let go when done. A tap still works (stops after a pause).
+export function wireHoldToTalk(el, start) {
+  let downAt = 0;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    downAt = Date.now();
+    setHolding(true);
+    stopSpeaking();
+    if (!isListening()) start();
+  });
+  const up = () => {
+    if (!downAt) return;
+    setHolding(false);
+    if (Date.now() - downAt > 600) finishListening();
+    downAt = 0;
+  };
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => el.addEventListener(ev, up));
+  el.addEventListener('click', (e) => { if (e.detail === 0) { stopSpeaking(); start(); } }); // keyboard, switch access, TalkBack
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
 function setBarText(text) {
   const el = document.querySelector('.voice-bar .voice-text');
   if (el) el.textContent = text;
@@ -249,9 +292,10 @@ export async function voiceTurn({ retries = 2 } = {}) {
     bar?.classList.add('is-listening');
     bar?.classList.remove('is-paused');
     setBarText(tr('listening'));
-    const heard = await listenAll({ lang: P().lang, onInterim: (t) => setBarText(`“${t}…”`) });
+    const heard = await listenAll({ lang: listenLangFor(P(), i), onInterim: (t) => setBarText(`“${t}…”`), onSpeech: () => setBarText(tr('vm_hearing')) });
     bar?.classList.remove('is-listening');
     if (gen !== screenGen) return;
+    if (!heard.length && (await explainMicProblem())) { bar?.classList.add('is-paused'); setBarText(tr('vm_tap')); return; }
     setBarText(heard[0] ? `“${heard[0]}”` : tr('vm_tap'));
     if (heard.length) {
       const cmd = await handleHeard(heard);

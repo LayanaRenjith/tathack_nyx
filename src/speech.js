@@ -118,7 +118,15 @@ const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecog
 export const canListen = Boolean(Recognition);
 
 let activeRec = null;
+let holding = false;
+let pauseMs = 1800;
+let lastError = '';
 export const isListening = () => Boolean(activeRec);
+export const listenError = () => lastError;
+/** How long a pause ends what the user is saying. Older users pause mid-sentence ("two hundred… fifty"). */
+export function setPauseMs(ms) { pauseMs = ms || 1800; }
+/** While the mic button is held down, pauses never end listening. */
+export function setHolding(on) { holding = on; }
 
 /** Stop any listening in progress (screen changed, user tapped). */
 export function cancelListening() {
@@ -126,43 +134,103 @@ export function cancelListening() {
   activeRec = null;
 }
 
+/** Finish now and use what was heard so far (mic button released). */
+export function finishListening() {
+  try { activeRec?.stop(); } catch {}
+}
+
+/** Ask for the microphone once, with a clear answer instead of silent failure. */
+export async function ensureMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+    return 'ok';
+  } catch (e) {
+    return e?.name === 'NotAllowedError' ? 'not-allowed' : 'audio-capture';
+  }
+}
+
+const waitForSilence = async () => {
+  // Never listen while Sahaaya is still talking (the mic would hear Sahaaya), then a short gap for the echo.
+  for (let i = 0; i < 60 && globalThis.speechSynthesis?.speaking; i += 1) await new Promise((r) => setTimeout(r, 100));
+  await new Promise((r) => setTimeout(r, 250));
+};
+
 /**
- * Listen once and return every guess the recogniser makes (up to 5), best first; [] on silence.
- * A rising beep says "speak now", a falling beep says "got it", so a blind user knows when to talk.
+ * Listen and return every guess the recogniser makes, best first; [] on silence.
+ * - Keeps listening through short pauses and ends after `pauseMs` of quiet (or when the button is released).
+ * - Several pieces of speech are joined ("two hundred" + "fifty").
+ * - Errors are kept in listenError(): 'not-allowed' (mic blocked), 'network' (no internet), 'audio-capture' (mic busy), 'no-speech'.
+ * - A short buzz says "speak now", a soft beep says "got it".
  */
-export function listenAll({ lang = currentLang, timeoutMs = 8000, beep = true, onInterim = null } = {}) {
-  if (!Recognition) return Promise.resolve([]);
+export function listenAll({ lang = currentLang, timeoutMs = 15000, beep = true, onInterim = null, onSpeech = null } = {}) {
+  if (!Recognition) { lastError = 'unsupported'; return Promise.resolve([]); }
   cancelListening();
-  return new Promise((resolve) => {
+  return waitForSilence().then(() => new Promise((resolve) => {
     const rec = new Recognition();
     activeRec = rec;
     rec.lang = LANGS[lang]?.speech || lang || 'en-IN';
-    rec.interimResults = Boolean(onInterim); // show words as they are heard
-    rec.continuous = false;
+    rec.interimResults = true;
+    rec.continuous = true;
     rec.maxAlternatives = 5;
+    lastError = '';
     let done = false;
-    const finish = (list) => {
+    let heardAt = 0;
+    const finals = [];       // best transcript of each finished piece
+    let lastAlts = [];       // alternatives of the latest finished piece
+    let interim = '';
+    const result = () => {
+      const before = finals.slice(0, -1).join(' ');
+      const alts = lastAlts.length ? lastAlts.map((a) => `${before} ${a}`.trim()) : [];
+      if (!alts.length && interim) alts.push(`${finals.join(' ')} ${interim}`.trim());
+      return [...new Set(alts.filter(Boolean))];
+    };
+    const finish = () => {
       if (done) return;
       done = true;
-      clearTimeout(timer);
+      clearTimeout(hardStop);
+      clearInterval(silenceTimer);
       try { rec.stop(); } catch {}
       if (activeRec === rec) activeRec = null;
-      if (beep && list.length) playTone({ ms: 90, hz: 520, volume: 0.15 });
+      const list = result();
+      if (!list.length && !lastError) lastError = 'no-speech';
+      if (beep && list.length) playTone({ ms: 80, hz: 660, volume: 0.12 });
       resolve(list);
     };
+    rec.onspeechstart = () => { heardAt = Date.now(); onSpeech?.(); };
     rec.onresult = (e) => {
-      const r = e.results[e.results.length - 1];
-      if (onInterim && r && r.isFinal === false) { onInterim(r[0]?.transcript || ''); return; }
-      const list = [];
-      for (let i = 0; i < (r?.length || 0); i++) if (r[i].transcript) list.push(r[i].transcript);
-      finish(list);
+      heardAt = Date.now();
+      // Rebuild from every piece each time. Some Android phones repeat earlier words inside later
+      // pieces ("two hundred", "two hundred fifty"), so a piece that starts with the one before replaces it.
+      finals.length = 0;
+      lastAlts = [];
+      interim = '';
+      for (let i = 0; i < e.results.length; i += 1) {
+        const r = e.results[i];
+        const text = (r[0]?.transcript || '').trim();
+        if (r.isFinal === false) { interim += ` ${text}`; continue; }
+        const prev = finals.at(-1);
+        if (prev && text.toLowerCase().startsWith(prev.toLowerCase())) finals.pop();
+        finals.push(text);
+        lastAlts = [];
+        for (let j = 0; j < r.length; j += 1) if (r[j].transcript) lastAlts.push(r[j].transcript.trim());
+      }
+      interim = interim.trim();
+      onInterim?.(`${finals.join(' ')} ${interim}`.trim());
     };
-    rec.onerror = () => finish([]);
-    rec.onend = () => finish([]);
-    const timer = setTimeout(() => finish([]), timeoutMs);
-    const start = () => { try { rec.start(); } catch { finish([]); } };
-    if (beep) playTone({ ms: 110, hz: 880, volume: 0.15 }).then(start); else start();
-  });
+    rec.onerror = (e) => { if (e.error !== 'aborted') lastError = e.error || 'error'; if (e.error !== 'no-speech') finish(); };
+    rec.onend = () => finish();
+    const startedAt = Date.now();
+    const silenceTimer = setInterval(() => {
+      if (holding) return;
+      const now = Date.now();
+      if (heardAt && now - heardAt > pauseMs) finish();          // they spoke, then paused
+      else if (!heardAt && now - startedAt > 8000) finish();      // nothing at all
+    }, 200);
+    const hardStop = setTimeout(finish, timeoutMs);
+    try { navigator.vibrate?.(40); } catch {}
+    try { rec.start(); } catch { lastError = 'busy'; finish(); }
+  }));
 }
 
 /** Listen once; resolves with the best transcript ('' on failure or timeout). */

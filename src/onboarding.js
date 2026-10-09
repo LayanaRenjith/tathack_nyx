@@ -7,10 +7,10 @@ import { deriveProfile, NEEDS, TOGGLES, START_PROFILE, normaliseProfile } from '
 import { PAY_APPS } from './upi.js';
 import { biometricAvailable, registerBiometric, hashCode, newSalt } from './auth.js';
 import { makeGuardian } from './guardian.js';
-import { speak, vibrate, BUZZ, listenAll, canListen } from './speech.js';
+import { speak, vibrate, BUZZ, listenAll, canListen, ensureMic } from './speech.js';
 import { yesNo, normalise } from './spoken.js';
 import { icon } from './icons.js';
-import { route, go, replace, back, goHome, render, on, esc, tr, P, S, applySettings, announce, setVoice, screenId } from './ui.js';
+import { route, go, replace, back, goHome, render, on, esc, tr, P, S, applySettings, announce, setVoice, screenId, explainMicProblem } from './ui.js';
 
 const TOTAL = 6;
 let draft = { needs: [], payApp: 'any' };
@@ -112,8 +112,9 @@ route('voice-setup', () => {
       status.textContent = question;
       await speak(i ? `${tr('vm_try_again')} ${question}` : question, { lang });
       if (!live()) return null;
-      const alts = await listenAll({ lang });
+      const alts = await listenAll({ lang: i % 2 && lang !== 'en' ? 'en' : lang });
       if (!live()) return null;
+      if (!alts.length && (await explainMicProblem())) return null;
       heardEl.textContent = alts[0] || '';
       const v = alts.length ? accept(alts) : null;
       if (v !== null && v !== undefined) return v;
@@ -123,6 +124,7 @@ route('voice-setup', () => {
   const yes = (alts) => yesNo(alts);
 
   (async () => {
+    if ((await ensureMic()) !== 'ok') { status.textContent = tr('mic_blocked'); await speak(tr('mic_blocked')); return; }
     // 1. Language: each option spoken in its own language, heard in Indian English (all names are recognised).
     let lang = null;
     for (let i = 0; i < 2 && !lang && live(); i += 1) {

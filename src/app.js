@@ -2,12 +2,12 @@
 
 import * as store from './store.js';
 import { listenAll, canListen, stopSpeaking, speak } from './speech.js';
-import { speaks, voiceDriven } from './profile.js';
+import { speaks, voiceDriven, listenLangFor } from './profile.js';
 import { monthlyReport } from './report.js';
 import { findShopBySpeech, amountFrom } from './spoken.js';
 import { formatRupees } from './amount.js';
 import { normalisePhone } from './family.js';
-import { currentName, go, back, goHome, replace, rerender, tr, P, S, announce, applySettings, readScreen, startTapWatching, onGlobalCommand, handleHeard, voiceTurn, voiceHelp } from './ui.js';
+import { currentName, go, back, goHome, replace, rerender, tr, P, S, announce, applySettings, readScreen, startTapWatching, onGlobalCommand, handleHeard, voiceTurn, voiceHelp, explainMicProblem, showToast } from './ui.js';
 import './onboarding.js';
 import './home.js';
 import './pay.js';
@@ -80,11 +80,19 @@ window.addEventListener('sahaaya:voice', async () => {
   if (!canListen) { announce(tr('no_listen'), { force: true }); return; }
   stopSpeaking();
   if (voiceDriven(P())) { voiceTurn(); return; }
-  const btn = document.querySelector('[data-bar="voice"]');
-  btn?.classList.add('is-listening');
-  const heard = await listenAll({ lang: P().lang });
-  btn?.classList.remove('is-listening');
-  if (!(await handleHeard(heard))) announce(tr('not_understood'), { force: true });
+  const btns = document.querySelectorAll('[data-bar="voice"]');
+  btns.forEach((b) => b.classList.add('is-listening'));
+  let heard = await listenAll({ lang: listenLangFor(P(), 0), onSpeech: () => showToast(tr('vm_hearing')) });
+  if (!heard.length && (await explainMicProblem())) { btns.forEach((b) => b.classList.remove('is-listening')); return; }
+  let cmd = heard.length ? await handleHeard(heard) : null;
+  if (!cmd && listenLangFor(P(), 1) !== listenLangFor(P(), 0)) {
+    // Not understood in their language: one more try in Indian English.
+    await announce(tr('vm_try_again'), { force: true });
+    heard = await listenAll({ lang: listenLangFor(P(), 1) });
+    cmd = heard.length ? await handleHeard(heard) : null;
+  }
+  btns.forEach((b) => b.classList.remove('is-listening'));
+  if (!cmd) announce(heard[0] ? `${tr('vm_heard', { text: heard[0] })} ${tr('not_understood')}` : tr('not_understood'), { force: true });
 });
 
 // Full voice control: shake the phone to talk (no button to find).

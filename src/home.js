@@ -8,8 +8,8 @@ import { PAY_APPS, buildUpiLink, appLink } from './upi.js';
 import { verifyBiometric, checkCode } from './auth.js';
 import { normalisePhone } from './family.js';
 import { icon } from './icons.js';
-import { BUZZ, voicesFor, speak } from './speech.js';
-import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice, textSizeBtn } from './ui.js';
+import { BUZZ, voicesFor, speak, ensureMic } from './speech.js';
+import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice, textSizeBtn, showToast } from './ui.js';
 import { pendingReport } from './report.js';
 import { voiceDriven } from './profile.js';
 import { codePad, codePadHtml, settingsControls, wireSettingsControls, trustedForm, saveTrustedForm, limitsForm, saveLimitsForm, guardianForm, wireGuardianForm, saveGuardianForm } from './onboarding.js';
@@ -253,7 +253,10 @@ route('profile', () => {
   on('#r-access', 'click', () => go('settings'));
   on('#r-report', 'click', () => go('report'));
   on('#r-practice', 'click', () => go('voice-practice'));
-  on('#r-voice', 'click', () => { store.updateProfile({ voiceOnly: !p.voiceOnly, voice: true, handsFree: true, screenReader: false }); applySettings(); rerender(); });
+  on('#r-voice', 'click', async () => {
+    if (!p.voiceOnly && (await ensureMic()) !== 'ok') { announce(tr('mic_blocked'), { force: true }); showToast(tr('mic_blocked')); return; }
+    store.updateProfile({ voiceOnly: !p.voiceOnly, voice: true, handsFree: true, screenReader: false }); applySettings(); rerender();
+  });
   on('#test', 'click', () => {
     const vpa = document.getElementById('vpa').value.trim();
     if (!vpa.includes('@')) { document.getElementById('vpa').focus(); return; }
@@ -292,6 +295,12 @@ route('settings', () => {
           <option value="">${esc(tr('voice_best'))}</option>
           ${voices.map((v) => `<option value="${esc(v.name)}" ${p.voiceName === v.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}
         </select>` : `<p class="note warn-note">${icon('info')}<span>${esc(tr('voice_missing'))}</span></p>`}
+        <span class="label" id="ll-label">${icon('mic')} ${esc(tr('listen_lang'))}</span>
+        <div class="lang-grid one-col" role="radiogroup" aria-labelledby="ll-label">
+          ${[['auto', tr('listen_auto', { lang: LANGS[p.lang].label })], ['own', tr('listen_own', { lang: LANGS[p.lang].label })], ['en', 'English']].filter(([k]) => p.lang !== 'en' || k !== 'auto').map(([k, label]) => `<button class="chip ${p.listenLang === k ? 'is-on' : ''}" role="radio" aria-checked="${p.listenLang === k}" data-ll="${k}">${esc(label)}</button>`).join('')}
+        </div>
+        <button class="toggle-row boxed" id="slow" role="switch" aria-checked="${Boolean(p.slowSpeech)}"><span class="grow">${esc(tr('slow_speaker'))}</span><span class="switch" aria-hidden="true"><span></span></span></button>
+        <p class="hint">${esc(tr('hold_hint'))}</p>
         <div class="row"><button class="btn wide" id="voice-test">${icon('speaker')}<span>${esc(tr('voice_test'))}</span></button>
         <button class="btn wide" id="voice-practice">${icon('mic')}<span>${esc(tr('practice_title'))}</span></button></div>
       </div>
@@ -301,6 +310,8 @@ route('settings', () => {
   wireSettingsControls(p, (next) => { store.updateProfile(next); applySettings(); rerender(); });
   on('[data-font]', 'click', (e) => { const font = e.currentTarget.dataset.font; store.updateProfile({ font, dyslexiaFont: font !== 'standard' }); applySettings(); rerender(); });
   on('#voice-pick', 'change', (e) => { store.updateProfile({ voiceName: e.currentTarget.value }); applySettings(); speak(tr('voice_sample', { name: S().user.name || '' })); });
+  on('[data-ll]', 'click', (e) => { store.updateProfile({ listenLang: e.currentTarget.dataset.ll }); applySettings(); rerender(); });
+  on('#slow', 'click', () => { store.updateProfile({ slowSpeech: !p.slowSpeech }); applySettings(); rerender(); });
   on('#voice-test', 'click', () => speak(tr('voice_sample', { name: S().user.name || '' })));
   on('#voice-practice', 'click', () => go('voice-practice'));
   on('#redo', 'click', () => go('needs'));
