@@ -36,6 +36,8 @@ test('Malayalam amounts, with word endings that change', () => {
   assert.equal(parseSpokenAmount('രണ്ടായിരത്തി അഞ്ഞൂറ് രൂപ'), 2500);
   assert.equal(parseSpokenAmount('അമ്പത് രൂപ'), 50);
   assert.equal(parseSpokenAmount('രണ്ട് ലക്ഷം'), 200000);
+  assert.equal(parseSpokenAmount('ലക്ഷ്മി ബേക്കറി 250'), 250, 'Lakshmi is a name, not a lakh');
+  assert.equal(parseSpokenAmount('லட்சுமி பேக்கரி 250'), 250);
 });
 
 test('Tamil amounts', () => {

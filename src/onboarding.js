@@ -6,6 +6,7 @@ import * as store from './store.js';
 import { deriveProfile, NEEDS, TOGGLES, START_PROFILE, normaliseProfile } from './profile.js';
 import { PAY_APPS } from './upi.js';
 import { biometricAvailable, registerBiometric, hashCode, newSalt } from './auth.js';
+import { makeGuardian } from './guardian.js';
 import { speak, vibrate, BUZZ, listenAll, canListen } from './speech.js';
 import { yesNo, normalise } from './spoken.js';
 import { icon } from './icons.js';
@@ -16,20 +17,48 @@ let draft = { needs: [], payApp: 'any' };
 const say = (text) => { if (!P().screenReader) speak(text, { lang: P().lang }); };
 const progress = (n) => `<div class="progress" role="progressbar" aria-valuemin="1" aria-valuemax="${TOTAL}" aria-valuenow="${n}"><span style="width:${(n / TOTAL) * 100}%"></span></div>`;
 
-const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 360 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf3df"/><stop offset="1" stop-color="#f3efe2"/></linearGradient></defs>
-  <rect width="360" height="200" fill="url(#sky)"/>
-  <circle cx="276" cy="58" r="26" fill="#ffd98a" opacity=".85"/>
-  <path d="M0 150 C60 112 130 128 190 116 C250 104 300 118 360 104 V200 H0Z" fill="#cfe3d3"/>
-  <path d="M0 170 C80 146 170 160 250 148 C300 141 330 146 360 140 V200 H0Z" fill="#a9cdb3"/>
-  <g transform="translate(46 70)"><rect x="18" y="40" width="10" height="64" rx="4" fill="#8a6a4f"/><circle cx="23" cy="34" r="32" fill="#7fb38f"/><circle cx="2" cy="50" r="20" fill="#93c3a1"/><circle cx="44" cy="48" r="22" fill="#6ea883"/></g>
-  <g transform="translate(150 112)">
-    <rect x="0" y="28" width="104" height="8" rx="3" fill="#9a7457"/><rect x="0" y="14" width="104" height="7" rx="3" fill="#b08868"/>
-    <rect x="8" y="36" width="6" height="22" fill="#7d5d45"/><rect x="90" y="36" width="6" height="22" fill="#7d5d45"/>
-    <circle cx="34" cy="-6" r="11" fill="#f0c9a5"/><path d="M23 -8 a11 11 0 0 1 22 0 c-4 -6 -18 -6 -22 0z" fill="#f4f1ec"/><rect x="21" y="5" width="26" height="26" rx="10" fill="#c9877a"/>
-    <circle cx="70" cy="-8" r="11" fill="#e9bf98"/><path d="M59 -10 a11 11 0 0 1 22 0 c-2 -8 -20 -8 -22 0z" fill="#dcdcdc"/><rect x="57" y="3" width="27" height="28" rx="10" fill="#5f87a8"/>
-    <rect x="44" y="14" width="16" height="10" rx="3" fill="#2f3b36"/><rect x="46" y="16" width="12" height="6" rx="1.5" fill="#9fd3b4"/>
+export const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 360 270" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd9b0"/><stop offset=".55" stop-color="#fdeccf"/><stop offset="1" stop-color="#f8f1e4"/></linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff6d6"/><stop offset="1" stop-color="#fff6d6" stop-opacity="0"/></radialGradient>
+    <radialGradient id="safe" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7fd3a1" stop-opacity=".55"/><stop offset="1" stop-color="#7fd3a1" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="360" height="270" fill="url(#sky)"/>
+  <circle cx="92" cy="92" r="70" fill="url(#glow)"/><circle cx="92" cy="92" r="26" fill="#ffc96b"/>
+  <path d="M0 196 C70 168 130 182 200 170 C260 160 310 172 360 160 V270 H0Z" fill="#cfe3cf"/>
+  <!-- coconut palms -->
+  <g fill="none" stroke="#6f9a72" stroke-width="5" stroke-linecap="round"><path d="M40 196 C44 160 40 130 50 104"/><path d="M330 178 C326 146 330 120 322 98"/></g>
+  <g fill="#7fae84"><path d="M50 104 c-18 -6 -34 2 -42 12 c16 -4 30 -6 42 -12z"/><path d="M50 104 c4 -18 20 -26 34 -26 c-10 8 -20 16 -34 26z"/><path d="M50 104 c16 -8 34 -2 42 10 c-16 -4 -30 -6 -42 -10z"/><path d="M50 104 c-8 -16 -4 -32 6 -40 c-2 14 -2 26 -6 40z"/>
+    <path d="M322 98 c18 -6 32 2 38 12 c-14 -4 -26 -6 -38 -12z"/><path d="M322 98 c-4 -16 -20 -24 -32 -24 c10 8 18 14 32 24z"/><path d="M322 98 c-14 -6 -30 0 -36 10 c14 -4 26 -6 36 -10z"/></g>
+  <!-- little shop -->
+  <g transform="translate(196 104)">
+    <rect x="0" y="34" width="118" height="82" rx="6" fill="#f3e2c7"/>
+    <path d="M-6 34 h130 l-8 -24 h-114z" fill="#3d7a5c"/>
+    <g fill="#fff"><path d="M8 10 h12 l-3 24 h-14z"/><path d="M36 10 h12 l1 24 h-14z"/><path d="M64 10 h12 l5 24 h-14z"/><path d="M92 10 h12 l9 24 h-14z"/></g>
+    <rect x="0" y="80" width="118" height="10" fill="#b98a5e"/><rect x="8" y="46" width="44" height="30" rx="3" fill="#fff8ec"/>
+    <g fill="#e9a54a"><circle cx="18" cy="58" r="5"/><circle cx="30" cy="60" r="5"/><circle cx="42" cy="57" r="5"/></g>
+    <rect x="72" y="44" width="34" height="36" rx="4" fill="#fff" stroke="#23302a" stroke-width="2"/>
+    <g fill="#23302a"><rect x="77" y="49" width="8" height="8"/><rect x="93" y="49" width="8" height="8"/><rect x="77" y="66" width="8" height="8"/><rect x="88" y="60" width="4" height="4"/><rect x="94" y="66" width="6" height="3"/><rect x="95" y="71" width="3" height="5"/></g>
   </g>
+  <!-- grandmother, holding her phone up to the QR -->
+  <g transform="translate(118 112)">
+    <path d="M14 150 C10 108 18 78 46 70 C74 78 84 108 80 150Z" fill="#e7b94a"/>
+    <path d="M30 76 C46 92 58 120 62 150 L80 150 C84 108 74 78 46 70Z" fill="#c9553f"/>
+    <path d="M24 92 c-10 10 -12 26 -6 36" stroke="#b9853c" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M66 86 C80 80 92 70 98 58" stroke="#e0a77f" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <rect x="90" y="30" width="18" height="30" rx="4" fill="#23302a" transform="rotate(14 99 45)"/>
+    <rect x="93" y="34" width="12" height="20" rx="2" fill="#9fe0b8" transform="rotate(14 99 45)"/>
+    <circle cx="46" cy="50" r="19" fill="#e0a77f"/>
+    <path d="M27 48 a19 19 0 0 1 38 -4 c-6 -10 -30 -12 -38 4z" fill="#f4f1ec"/><circle cx="34" cy="34" r="9" fill="#f4f1ec"/>
+    <path d="M50 50 q4 3 8 0" stroke="#7a4a33" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="44" cy="48" r="1.8" fill="#4a3226"/><circle cx="56" cy="47" r="1.8" fill="#4a3226"/>
+    <path d="M46 57 q5 4 10 0" stroke="#a5523e" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="51" cy="44" r="1.4" fill="#c9553f"/>
+  </g>
+  <!-- the check: a green shield glowing over the phone -->
+  <circle cx="230" cy="122" r="34" fill="url(#safe)"/>
+  <g transform="translate(214 102)"><path d="M16 0 l16 6 v12 c0 10 -7 17 -16 20 c-9 -3 -16 -10 -16 -20 v-12z" fill="#2f8a5b"/><path d="M9 18 l5 5 l9 -10" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <!-- family, one tap away -->
+  <g transform="translate(18 18)"><rect width="128" height="40" rx="20" fill="#fff" opacity=".92"/><circle cx="20" cy="20" r="13" fill="#eeebfb"/><path d="M14 26 c1 -5 4 -7 6 -7 s5 2 6 7" fill="#6d55c9"/><circle cx="20" cy="14" r="4" fill="#6d55c9"/>
+    <path d="M44 15 h58 M44 25 h40" stroke="#c9c3e9" stroke-width="4" stroke-linecap="round"/><path d="M112 14 c-3 -4 -9 -1 -6 4 l6 6 l6 -6 c3 -5 -3 -8 -6 -4z" fill="#d0475a"/></g>
 </svg>`;
 
 // ---------- Welcome ----------
@@ -38,10 +67,11 @@ route('welcome', () => {
   applySettings();
   render(`
     <section class="screen welcome">
-      <div class="welcome-hero">${WELCOME_ART}</div>
-      <div class="brand-lockup"><span class="logo big" aria-hidden="true"></span><h1 class="hero-title">${esc(tr('app_name'))}</h1></div>
-      <p class="hero-sub">${esc(tr('tagline'))}</p>
-      <p class="readable muted center">${esc(tr('intro'))}</p>
+      <div class="welcome-hero">${WELCOME_ART}<div class="brand-chip"><span class="logo" aria-hidden="true"></span>${esc(tr('app_name'))}</div></div>
+      <div class="readable cover-copy">
+        <h1 class="cover-title">${esc(tr('cover_title'))}</h1>
+        <p class="cover-sub">${esc(tr('cover_sub'))}</p>
+      </div>
       <div class="lang-list" role="radiogroup" aria-label="${esc(tr('choose_lang'))}">
         <p class="label">${icon('globe')} ${esc(tr('choose_lang'))}</p>
         ${Object.entries(LANGS).map(([code, l]) => `<button class="lang-row ${P().lang === code ? 'is-on' : ''}" role="radio" data-lang="${code}" aria-checked="${P().lang === code}" lang="${code}"><span class="grow">${esc(l.label)}</span><span class="lang-check">${icon('check')}</span></button>`).join('')}
@@ -49,7 +79,7 @@ route('welcome', () => {
       <button class="btn big primary wide" id="start" data-next>${esc(tr('get_started'))}</button>
       ${canListen ? `<button class="btn big wide voice-start" id="by-voice">${icon('mic')}<span>${esc(tr('voice_setup'))}</span></button>` : ''}
     </section>`, { top: null, title: tr('app_name') });
-  say(`${tr('choose_lang')}. ${tr('intro')}`);
+  say(`${tr('cover_title')} ${tr('cover_sub')} ${tr('choose_lang')}.`);
   on('[data-lang]', 'click', (e) => { store.updateProfile({ lang: e.currentTarget.dataset.lang }); applySettings(); replace('welcome'); });
   on('#start', 'click', () => go('signup'));
   on('#by-voice', 'click', () => go('voice-setup'));
@@ -339,12 +369,14 @@ route('trusted-setup', () => {
       <h1>${esc(tr('trusted_setup_title'))}</h1>
       <p class="muted">${esc(tr('trusted_intro'))}</p>
       ${trustedForm()}
+      ${guardianForm()}
       ${limitsForm()}
       <button class="btn big primary wide" id="next" data-next>${esc(tr('next'))}</button>
       <button class="btn ghost wide" id="skip">${esc(tr('skip'))}</button>
     </section>`, { title: tr('trusted_setup_title') });
   say(`${tr('trusted_setup_title')}. ${tr('trusted_intro')}`);
-  on('#next', 'click', () => { saveTrustedForm(); saveLimitsForm(); go('shops-setup'); });
+  wireGuardianForm();
+  on('#next', 'click', async () => { saveTrustedForm(); saveLimitsForm(); await saveGuardianForm(); go('shops-setup'); });
   on('#skip', 'click', () => go('shops-setup'));
 });
 
@@ -357,6 +389,28 @@ export const trustedForm = () => `
     <label for="p-phone">${esc(tr('person_phone'))}</label>
     <input id="p-phone" class="field" inputmode="tel" autocomplete="off" placeholder="98470 12345">
   </div>`;
+
+/** Guardian PIN: chosen by the trusted person, used only to approve new shops and big payments. */
+export const guardianForm = () => `
+  <div class="card stack tight guardian-card">
+    <h2 class="card-title">${icon('shield')} ${esc(tr('guardian_title'))}</h2>
+    <p class="hint">${esc(tr(S().guardian ? 'guardian_set' : 'guardian_hint'))}</p>
+    <label for="g-new">${esc(S().guardian ? tr('guardian_change') : tr('guardian_pin'))}</label>
+    <input id="g-new" class="field code-field" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••">
+    <button class="toggle-row" id="l-new" role="switch" aria-checked="${S().limits.newShops !== false}"><span class="grow">${esc(tr('new_shops_rule'))}</span><span class="switch" aria-hidden="true"><span></span></span></button>
+  </div>`;
+
+export function wireGuardianForm() {
+  const t = document.getElementById('l-new');
+  t?.addEventListener('click', () => t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true')));
+}
+
+export async function saveGuardianForm() {
+  const pin = String(document.getElementById('g-new')?.value || '').replace(/\D/g, '');
+  const rule = document.getElementById('l-new');
+  if (rule) store.update({ limits: { ...S().limits, newShops: rule.getAttribute('aria-checked') === 'true' } });
+  if (pin.length === 4) store.update({ guardian: await makeGuardian(pin) });
+}
 
 export function saveTrustedForm() {
   const name = document.getElementById('p-name')?.value.trim();
@@ -379,7 +433,7 @@ export const limitsForm = () => {
 
 export function saveLimitsForm() {
   const num = (id) => { const v = Number(String(document.getElementById(id)?.value || '').replace(/\D/g, '')); return v > 0 ? v : null; };
-  store.update({ limits: { perPayment: num('l-pay'), daily: num('l-day') } });
+  store.update({ limits: { ...S().limits, perPayment: num('l-pay'), daily: num('l-day') } });
 }
 
 // ---------- 7. Regular shops ----------

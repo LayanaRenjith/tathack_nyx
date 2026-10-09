@@ -12,7 +12,8 @@ const fresh = () => ({
   lock: { type: 'none', credId: null, codeHash: null, salt: null },
   profile: { ...START_PROFILE },
   trusted: [],                                  // { name, phone, relation }
-  limits: { perPayment: 2000, daily: 5000 },
+  limits: { perPayment: 2000, daily: 5000, newShops: true },
+  guardian: null,                               // { salt, key, check } from the Guardian PIN (never the PIN)
   savedShops: [],                               // { name, vpa, usualAmount }
   history: [],                                  // { name, vpa, amount, status, at }
   largeLimit: 2000,

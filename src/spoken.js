@@ -55,6 +55,8 @@ const EXACT = {
   sawa: { k: 'add', v: 0.25 }, sadhe: { k: 'add', v: 0.5 }, saade: { k: 'add', v: 0.5 }, paune: { k: 'add', v: -0.25 },
   // Malayalam / Tamil words that are whole on their own
   'ഒരു': N(1), 'ஒரு': N(1),
+  // lakh: whole words only, so names like Lakshmi (ലക്ഷ്മി, லட்சுமி) are not read as numbers
+  'ലക്ഷം': { k: 'l' }, 'ലക്ഷത്തി': { k: 'l' }, 'ലക്ഷത്തിന്': { k: 'l' }, 'லட்சம்': { k: 'l' }, 'லட்சத்து': { k: 'l' }, 'லட்ச': { k: 'l' },
 };
 
 // Stems for Malayalam and Tamil: a word counts when it starts with the stem (longest stem wins).
@@ -68,7 +70,7 @@ const STEMS = {
   'നൂറ': { k: 'h' }, 'ഇരുന്നൂറ': N(200), 'മുന്നൂറ': N(300), 'നാനൂറ': N(400), 'അഞ്ഞൂറ': N(500), 'അറുന്നൂറ': N(600),
   'എഴുന്നൂറ': N(700), 'എണ്ണൂറ': N(800), 'തൊള്ളായിര': N(900),
   'ആയിര': { k: 'k' }, 'രണ്ടായിര': N(2000), 'മൂവായിര': N(3000), 'നാലായിര': N(4000), 'അയ്യായിര': N(5000), 'ആറായിര': N(6000),
-  'ഏഴായിര': N(7000), 'എട്ടായിര': N(8000), 'ഒമ്പതിനായിര': N(9000), 'പതിനായിര': N(10000), 'ലക്ഷ': { k: 'l' }, 'കോടി': { k: 'c' },
+  'ഏഴായിര': N(7000), 'എട്ടായിര': N(8000), 'ഒമ്പതിനായിര': N(9000), 'പതിനായിര': N(10000), 'കോടി': { k: 'c' },
   // Tamil
   'ஒன்ற': N(1), 'இரண்ட': N(2), 'ரெண்ட': N(2), 'மூன்ற': N(3), 'நான்க': N(4), 'நால': N(4), 'ஐந்த': N(5), 'அஞ்ச': N(5),
   'ஆற': N(6), 'ஏழ': N(7), 'எட்ட': N(8), 'ஒன்பத': N(9), 'பத்த': N(10), 'பதினொன்ற': N(11), 'பன்னிரண்ட': N(12),
@@ -79,7 +81,7 @@ const STEMS = {
   'அஞ்ஞூற': N(500), 'அறுநூற': N(600), 'எழுநூற': N(700), 'எண்ணூற': N(800), 'தொள்ளாயிர': N(900),
   'ஆயிர': { k: 'k' }, 'இரண்டாயிர': N(2000), 'ரெண்டாயிர': N(2000), 'மூவாயிர': N(3000), 'நாலாயிர': N(4000),
   'ஐயாயிர': N(5000), 'அஞ்சாயிர': N(5000), 'ஆறாயிர': N(6000), 'ஏழாயிர': N(7000), 'எட்டாயிர': N(8000),
-  'ஒன்பதாயிர': N(9000), 'பத்தாயிர': N(10000), 'லட்ச': { k: 'l' }, 'கோடி': { k: 'c' },
+  'ஒன்பதாயிர': N(9000), 'பத்தாயிர': N(10000), 'கோடி': { k: 'c' },
 };
 const STEM_KEYS = Object.keys(STEMS).sort((a, b) => b.length - a.length);
 
@@ -197,4 +199,75 @@ export function yesNo(alternatives) {
     if (YES_NO.yes.some((w) => phraseScore(toks, w))) return 'yes';
   }
   return null;
+}
+
+// ---------- Digits said one by one (approval codes, phone numbers) ----------
+const DIGIT_WORDS = { oh: 0, o: 0, zero: 0, one: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  'शून्य': 0, 'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पांच': 5, 'पाँच': 5, 'छह': 6, 'छः': 6, 'सात': 7, 'आठ': 8, 'नौ': 9,
+  'പൂജ്യം': 0, 'ഒന്ന്': 1, 'രണ്ട്': 2, 'മൂന്ന്': 3, 'നാല്': 4, 'അഞ്ച്': 5, 'ആറ്': 6, 'ഏഴ്': 7, 'എട്ട്': 8, 'ഒമ്പത്': 9, 'ഒൻപത്': 9,
+  'பூஜ்யம்': 0, 'சைபர்': 0, 'ஒன்று': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'மூன்று': 3, 'நான்கு': 4, 'நாலு': 4, 'ஐந்து': 5, 'அஞ்சு': 5, 'ஆறு': 6, 'ஏழு': 7, 'எட்டு': 8, 'ஒன்பது': 9 };
+
+/** "4 8 2 9 1 0", "four eight two…", "482 910" → "482910". Only digits and digit words count. */
+export function spokenDigits(alternatives) {
+  let best = '';
+  for (const a of [].concat(alternatives || [])) {
+    let out = '';
+    for (const tok of tokens(a)) {
+      if (/^\d+$/.test(tok)) out += tok;
+      else if (tok in DIGIT_WORDS) out += String(DIGIT_WORDS[tok]);
+    }
+    if (out.length > best.length) best = out;
+  }
+  return best;
+}
+
+// ---------- Shop names across scripts ----------
+// The recogniser writes "Lakshmi Bakery" as ലക്ഷ്മി ബേക്കറി, लक्ष्मी बेकरी or லட்சுமி பேக்கரி. Both sides are
+// reduced to a consonant skeleton (Tamil has one letter for k/g, t/d, p/b, so those are folded together).
+const SCRIPT = {
+  // Devanagari
+  'क': 'k', 'ख': 'k', 'ग': 'k', 'घ': 'k', 'ङ': 'n', 'च': 's', 'छ': 's', 'ज': 's', 'झ': 's', 'ञ': 'n', 'ट': 't', 'ठ': 't', 'ड': 't', 'ढ': 't', 'ण': 'n',
+  'त': 't', 'थ': 't', 'द': 't', 'ध': 't', 'न': 'n', 'प': 'p', 'फ': 'p', 'ब': 'p', 'भ': 'p', 'म': 'm', 'र': 'r', 'ल': 'l', 'ळ': 'l', 'व': 'v', 'श': 's', 'ष': 's', 'स': 's', 'ं': 'n', 'ज़': 's', 'फ़': 'p',
+  // Malayalam
+  'ക': 'k', 'ഖ': 'k', 'ഗ': 'k', 'ഘ': 'k', 'ങ': 'n', 'ച': 's', 'ഛ': 's', 'ജ': 's', 'ഝ': 's', 'ഞ': 'n', 'ട': 't', 'ഠ': 't', 'ഡ': 't', 'ഢ': 't', 'ണ': 'n',
+  'ത': 't', 'ഥ': 't', 'ദ': 't', 'ധ': 't', 'ന': 'n', 'പ': 'p', 'ഫ': 'p', 'ബ': 'p', 'ഭ': 'p', 'മ': 'm', 'ര': 'r', 'റ': 'r', 'ല': 'l', 'ള': 'l', 'ഴ': 'l', 'വ': 'v',
+  'ശ': 's', 'ഷ': 's', 'സ': 's', 'ൻ': 'n', 'ർ': 'r', 'ൽ': 'l', 'ൾ': 'l', 'ൺ': 'n', 'ം': 'm',
+  // Tamil
+  'க': 'k', 'ங': 'n', 'ச': 's', 'ஞ': 'n', 'ட': 't', 'ண': 'n', 'த': 't', 'ந': 'n', 'ப': 'p', 'ம': 'm', 'ர': 'r', 'ற': 'r', 'ல': 'l', 'ள': 'l', 'ழ': 'l', 'வ': 'v',
+  'ன': 'n', 'ஜ': 's', 'ஷ': 's', 'ஸ': 's',
+};
+
+export function skeleton(word) {
+  let w = String(word || '').toLowerCase().normalize('NFC');
+  if (/[a-z]/.test(w)) {
+    w = w.replace(/[^a-z]/g, '')
+      .replace(/ch/g, 's').replace(/sh/g, 's').replace(/ph/g, 'p').replace(/x/g, 'ks')
+      .replace(/[cq]/g, 'k').replace(/[gk]h/g, 'k').replace(/[td]h/g, 't').replace(/bh/g, 'p')
+      .replace(/g/g, 'k').replace(/d/g, 't').replace(/b/g, 'p').replace(/[jz]/g, 's').replace(/f/g, 'p').replace(/w/g, 'v')
+      .replace(/[aeiouyh]/g, '');
+  } else {
+    w = [...w].map((ch) => SCRIPT[ch] ?? '').join('');
+  }
+  return w.replace(/(.)\1+/g, '$1');
+}
+
+const near = (a, b) => a === b || (Math.min(a.length, b.length) >= 3 && Math.abs(a.length - b.length) <= 1 && lev(a, b) <= 1);
+
+/** The saved shop the user named, in any of the four scripts, or null. */
+export function findShopBySpeech(alternatives, shops) {
+  let best = null;
+  let bestScore = 0;
+  for (const a of [].concat(alternatives || [])) {
+    const said = tokens(a).map(skeleton).filter(Boolean);
+    const joined = said.join('');
+    for (const shop of shops || []) {
+      const words = shop.name.split(/\s+/).map(skeleton).filter((w) => w.length >= 2);
+      if (!words.length) continue;
+      const hits = words.filter((w) => said.some((s) => near(s, w)) || (w.length >= 3 && joined.includes(w))).length;
+      const score = hits / words.length;
+      const enough = words.length === 1 ? hits === 1 && words[0].length >= 3 : score >= 0.67;
+      if (enough && score > bestScore) { best = shop; bestScore = score; }
+    }
+  }
+  return best;
 }

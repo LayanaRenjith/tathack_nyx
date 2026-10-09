@@ -12,7 +12,7 @@ import { BUZZ } from './speech.js';
 import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice } from './ui.js';
 import { pendingReport } from './report.js';
 import { voiceDriven } from './profile.js';
-import { codePad, codePadHtml, settingsControls, wireSettingsControls, trustedForm, saveTrustedForm, limitsForm, saveLimitsForm } from './onboarding.js';
+import { codePad, codePadHtml, settingsControls, wireSettingsControls, trustedForm, saveTrustedForm, limitsForm, saveLimitsForm, guardianForm, wireGuardianForm, saveGuardianForm } from './onboarding.js';
 
 const money = (n) => formatRupees(n);
 const initials = (name) => (name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
@@ -91,7 +91,7 @@ route('home', () => {
         ${person ? tile('call', 'peach', 'call', tr('tile_call', { name: person.name }), tr('tile_call_sub')) : tile('access', 'peach', 'sliders', tr('tile_settings'), tr('tile_settings_sub'))}
       </div>
       ${person && s.limits.perPayment ? `<p class="note info-note">${icon('shield')}<span>${esc(tr('limit_note', { amount: money(s.limits.perPayment), name: person.name }))}</span></p>` : ''}
-      <div class="banner"><p>${esc(tr('banner'))} <span aria-hidden="true">💚</span></p>${BANNER_ART}</div>
+      <div class="banner"><p>${esc(person ? tr('banner_family', { name: person.name }) : tr('banner'))} <span aria-hidden="true">💚</span></p>${BANNER_ART}</div>
     </section>`, { top: null, nav: 'home', title: tr('home') });
   setVoice({ help: tr('vm_help_home') });
   announce(`${tr(greetingKey())}, ${s.user.name}. ${voiceDriven(P()) ? tr('vm_help_home') : tr('tile_pay')}`);
@@ -108,8 +108,8 @@ route('home', () => {
 // ---------- History ----------
 route('history', () => {
   const h = S().history;
-  const tone = { same: 'ok', new: 'caution', different: 'danger' };
-  const ic = { same: 'check', new: 'info', different: 'alert' };
+  const tone = { same: 'ok', approved: 'ok', new: 'caution', different: 'danger' };
+  const ic = { same: 'check', approved: 'family', new: 'info', different: 'alert' };
   const loc = P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`;
   const fmt = (at) => new Date(at).toLocaleString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const monthOf = (at) => new Date(at).toLocaleString(loc, { month: 'long', year: 'numeric' });
@@ -174,12 +174,14 @@ route('trusted', () => {
         ${trustedForm()}
         <button class="btn primary wide" id="add">${esc(tr('add_person'))}</button>
       </details>
+      ${guardianForm()}
       ${limitsForm()}
       <button class="btn big primary wide" id="save" data-next>${esc(tr('save'))}</button>
     </section>`, { title: tr('tile_family') });
   on('#add', 'click', () => { if (saveTrustedForm()) { announce(tr('saved')); rerender(); } });
   on('[data-remove]', 'click', (e) => { store.removeTrusted(people[Number(e.currentTarget.dataset.remove)].phone); rerender(); });
-  on('#save', 'click', () => { saveTrustedForm(); saveLimitsForm(); announce(tr('saved'), { force: true }); goHome(); });
+  wireGuardianForm();
+  on('#save', 'click', async () => { saveTrustedForm(); saveLimitsForm(); await saveGuardianForm(); announce(tr('saved'), { force: true }); goHome(); });
 });
 
 // ---------- Profile ----------

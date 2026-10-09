@@ -1,12 +1,12 @@
 // Offline support: cache the app shell so the safety check works with no network.
-const CACHE = 'sahaaya-v6';
+const CACHE = 'sahaaya-v7';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
   './src/app.js', './src/ui.js', './src/onboarding.js', './src/home.js', './src/pay.js',
   './src/upi.js', './src/safety.js', './src/match.js', './src/amount.js', './src/family.js', './src/auth.js',
   './src/i18n.js', './src/lang/en.js', './src/lang/ml.js', './src/lang/hi.js', './src/lang/ta.js',
   './src/speech.js', './src/keypad.js', './src/scanner.js', './src/store.js', './src/profile.js',
-  './src/adapt.js', './src/commands.js', './src/spoken.js', './src/report.js', './src/report-screen.js', './src/icons.js', './src/demo-codes.js',
+  './src/adapt.js', './src/commands.js', './src/spoken.js', './src/report.js', './src/report-screen.js', './src/guardian.js', './src/approve.js', './src/icons.js', './src/demo-codes.js',
 ];
 
 self.addEventListener('install', (e) => {

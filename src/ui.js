@@ -85,15 +85,45 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
   document.title = title ? `${title} · ${tr('app_name')}` : tr('app_name');
   window.scrollTo(0, 0);
-  if (P().simple) root().querySelector('[data-next]')?.classList.add('point-here');
+  clearInterval(pointerTimer);
+  document.getElementById('pointer-hand')?.remove();
+  if (P().simple) {
+    root().querySelector('[data-next]')?.classList.add('point-here');
+    placePointer();
+    pointerTimer = setInterval(placePointer, 400); // follows the button when the layout changes
+  }
   on('[data-bar="back"]', 'click', back);
   on('[data-bar="voice"]', 'click', () => window.dispatchEvent(new Event('sahaaya:voice')));
-  on('.voice-bar', 'click', () => voiceTurn());
+  on('.voice-bar', 'click', () => { stopSpeaking(); voiceTurn(); });
   on('[data-nav]', 'click', (e) => {
     const target = e.currentTarget.dataset.nav;
     if (target === 'home') goHome(); else { stack.length = 0; replace(target); }
   });
 }
+
+// ---------- "Tap here" pointer (simple mode) ----------
+// A hand drawn under the next button, pointing up at its centre. Positioned from the button's real box,
+// so it lines up at any text size, in any language, and never gets clipped by the button.
+let pointerTimer = null;
+const HAND = `<svg viewBox="0 0 48 58" width="44" height="54" aria-hidden="true"><path d="M19 7a4.5 4.5 0 0 1 9 0v17l1.6-.4a4.2 4.2 0 0 1 4.9 2.5 4.2 4.2 0 0 1 5.6 2.8 4.2 4.2 0 0 1 5.4 4V41c0 8.5-6.5 15-15 15h-3.6c-5 0-8.6-2.4-11.2-6.6L5.6 39a4.3 4.3 0 0 1 6.9-5.2L19 40z" fill="#fff" stroke="#23302a" stroke-width="2.6" stroke-linejoin="round"/><path d="M28 30v8M34.4 31v7M40 33v6" stroke="#23302a" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+
+function placePointer() {
+  const el = root().querySelector('.point-here');
+  let hand = document.getElementById('pointer-hand');
+  const r = el?.getBoundingClientRect();
+  if (!el || !r.width || el.disabled || el.closest('[hidden]')) { if (hand) hand.hidden = true; return; }
+  if (!hand) {
+    hand = document.createElement('div');
+    hand.id = 'pointer-hand';
+    hand.className = 'pointer-hand';
+    hand.innerHTML = HAND;
+    document.body.appendChild(hand);
+  }
+  hand.hidden = false;
+  hand.style.left = `${Math.round(r.left + window.scrollX + r.width / 2 - 21)}px`;
+  hand.style.top = `${Math.round(r.bottom + window.scrollY - 10)}px`;
+}
+window.addEventListener('resize', () => placePointer());
 
 const micBtn = () => `<button class="icon-btn" data-bar="voice" aria-label="${esc(tr('voice_btn'))}">${icon('mic')}</button>`;
 
@@ -170,8 +200,15 @@ export async function handleHeard(alternatives) {
   const local = keys.length ? parseCommand(alternatives, keys) : null;
   if (local) { await screenVoice.actions[local](alternatives); return local; }
   const cmd = parseCommand(alternatives);
+  // A saved shop's name ("Lakshmi Bakery 250", "pay Lakshmi Bakery") means pay that shop.
+  if (globalHandler && (!cmd || cmd === 'pay' || cmd === 'shops') && (await globalHandler('payShop', alternatives)) !== false) return 'payShop';
   if (cmd && globalHandler) { const ok = await globalHandler(cmd, alternatives); if (ok !== false) return cmd; }
   return null;
+}
+
+function setBarText(text) {
+  const el = document.querySelector('.voice-bar .voice-text');
+  if (el) el.textContent = text;
 }
 
 const QUIET_AFTER = new Set(['stop', 'voiceOff', 'call', 'send', 'tell']);
@@ -183,11 +220,15 @@ export async function voiceTurn({ retries = 2 } = {}) {
   const bar = document.querySelector('.voice-bar');
   for (let i = 0; i <= retries; i += 1) {
     bar?.classList.add('is-listening');
+    bar?.classList.remove('is-paused');
+    setBarText(tr('listening'));
     const heard = await listenAll({ lang: P().lang });
     bar?.classList.remove('is-listening');
     if (gen !== screenGen) return;
+    setBarText(heard[0] ? `“${heard[0]}”` : tr('vm_tap'));
     if (heard.length) {
       const cmd = await handleHeard(heard);
+      if (cmd) vibrate([40]);
       if (gen !== screenGen) return;           // moved to another screen; it will listen itself
       if (cmd) { if (!QUIET_AFTER.has(cmd) && voiceDriven(P())) { i = -1; continue; } return; }
     }
@@ -195,6 +236,7 @@ export async function voiceTurn({ retries = 2 } = {}) {
     if (gen !== screenGen) return;
   }
   bar?.classList.add('is-paused');
+  setBarText(tr('vm_tap'));
   if (speaks(P())) speak(tr('vm_paused'));
 }
 

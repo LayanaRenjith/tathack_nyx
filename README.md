@@ -1,6 +1,8 @@
 # Sahaaya
 
-**Check who you are paying, before you pay.** An accessibility companion for UPI payments, in Malayalam and English, for people who can't read the payment screen: blind and low-vision users, elderly people, people with hand tremors or colour blindness, and first-time smartphone users.
+![Sahaaya: They looked after us all their lives. Now Sahaaya looks after their money.](icons/cover.png)
+
+**Check who you are paying, before you pay.** An accessibility companion for UPI payments, in Malayalam, English, Hindi and Tamil, for people who can't read the payment screen: blind and low-vision users, elderly people, people with hand tremors or colour blindness, and first-time smartphone users.
 
 ## The problem
 
@@ -43,13 +45,22 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 
 **Full voice control (for blind users):** setup can be done entirely by voice ("Set up by voice": language, name, a family member's number). After that every screen is spoken and Sahaaya listens for what to do next: "pay", "report", "how much did I spend", "call my son", "read", "help", "back". A payment is: "pay" → scan (beeps rise in pitch as the QR comes into view, with spoken tips) → hear the result → say the amount → "right?" → final check → the UPI app opens. On a swapped QR it says "scan again, tell family, or continue".
 
-**Understanding speech in four languages, offline:** amounts in digits of any script and in words, including Indian forms: "two fifty", "dhai sau", "साढ़े तीन सौ", "ഇരുന്നൂറ്റി അമ്പത്", "இருநூற்று ஐம்பது". Commands and yes/no match on word stems (Malayalam and Tamil word endings change), allow small English typos, include the English words people mix in ("scan", "report"), and are checked against all of the recogniser's guesses. Screen-specific words are tried before app-wide ones. Rising and falling beeps say when Sahaaya is listening.
+**Understanding speech in four languages, offline:** amounts in digits of any script and in words, including Indian forms: "two fifty", "dhai sau", "साढ़े तीन सौ", "ഇരുന്നൂറ്റി അമ്പത്", "இருநூற்று ஐம்பது". Commands and yes/no match on word stems (Malayalam and Tamil word endings change), allow small English typos, include the English words people mix in ("scan", "report"), and are checked against all of the recogniser's guesses. Screen-specific words are tried before app-wide ones. Rising and falling beeps say when Sahaaya is listening, a short buzz confirms it understood, and what it heard is shown on screen.
+
+**Pay a saved shop by name, no QR needed:** "Lakshmi Bakery 250" (or ലക്ഷ്മി ബേക്കറി 250, लक्ष्मी बेकरी 250, லட்சுமி பேக்கரி 250) goes straight to the check. Names are matched across scripts using a consonant skeleton, and the payment goes to the account saved for that shop. Also: "who am I paying", "what is my limit", and shake the phone to talk.
 
 **Learns as you use it:** if taps keep missing buttons or repeating, Sahaaya offers bigger buttons. Voice commands work on every screen.
 
 ## Family and limits
 
-A trusted person (son, daughter, neighbour) is added at setup with their WhatsApp number, plus a per-payment and a daily limit. A payment over a limit is held until the user sends the prepared WhatsApp or SMS ("Ammini wants to pay ₹3,000 to Lakshmi Bakery. Is this OK?"). A swapped QR offers "Tell Raju about this QR". Messages go through the user's own WhatsApp/SMS, so no server is needed.
+**New shops need the guardian's OK.** At setup the trusted person picks a 4-digit Guardian PIN (only a salted hash is stored). When the user scans a QR that isn't one of their saved shops, payment is held:
+1. "Ask Ravi to check" sends Ravi a WhatsApp link with the shop, account and amount.
+2. The link opens Sahaaya on Ravi's phone (no setup needed there). He checks, or calls, enters his Guardian PIN and gets a 6-digit approval code to send back.
+3. The user types or says the code. It only works for this request, this account and this amount, so it can't be reused, and the user never learns the PIN. The shop is then saved for next time.
+If Ravi is sitting next to them, he can type his PIN on the user's phone instead. Payments over the limit use the same approval.
+
+
+Limits: a trusted person (son, daughter, neighbour) is added at setup with their WhatsApp number, plus a per-payment and a daily limit. A payment over a limit is held until the user sends the prepared WhatsApp or SMS ("Ammini wants to pay ₹3,000 to Lakshmi Bakery. Is this OK?"). A swapped QR offers "Tell Raju about this QR". Messages go through the user's own WhatsApp/SMS, so no server is needed.
 
 ## Monthly report
 
@@ -94,6 +105,8 @@ src/home.js              Lock screen, dashboard, history by month, shops, truste
 src/pay.js               Scan → Check → Amount → Final check → Pay, voice payments, family limits; add a shop
 src/report.js            Monthly totals, per-shop breakdown, six-month trend
 src/report-screen.js     Report screen and WhatsApp sharing
+src/guardian.js          Guardian PIN, approval codes tied to account and amount, request links
+src/approve.js           The guardian's approval page (opens from the WhatsApp link)
 src/spoken.js            Amounts, yes/no and phrase matching in Malayalam, English, Hindi, Tamil
 src/commands.js          Voice commands in four languages
 src/auth.js              Fingerprint/face (WebAuthn) and 4-digit code lock

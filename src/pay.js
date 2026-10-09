@@ -8,11 +8,13 @@ import { parseUpiQr, buildUpiLink, appLink, PAY_APPS } from './upi.js';
 import { checkPayment, checkAmount, pauseSeconds, LEVEL, STATUS } from './safety.js';
 import { rupeesInWords, formatRupees } from './amount.js';
 import { overLimit, whatsappLink, smsLink } from './family.js';
-import { yesNo, amountFrom, parseSpokenAmount } from './spoken.js';
+import { yesNo, amountFrom, spokenDigits } from './spoken.js';
 import { speaks, voiceDriven } from './profile.js';
 import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, listenAll, canListen, BUZZ, vibrate, speak } from './speech.js';
+import { newRequestId, checkApproval, checkGuardianPin, requestLink } from './guardian.js';
+import { parseCommand } from './commands.js';
 import { DEMO_QRS } from './demo-codes.js';
 import { icon } from './icons.js';
 import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setCleanup, readScreen, setVoice, screenId, voiceTurn } from './ui.js';
@@ -184,8 +186,16 @@ route('result', (qr) => {
   let limit = null;
   let asked = false;
 
+  // ----- Guardian approval: new shops (and payments over the limit) need the trusted person's code -----
+  const guardian = s.guardian?.key ? s.guardian : null;
+  const needNew = Boolean(check.status === STATUS.NEW && person && guardian && s.limits.newShops !== false);
+  const reqId = newRequestId();
+  let approved = false;
+  const reason = () => (needNew ? 'new' : limit ? 'limit' : null);
+  const request = () => ({ id: reqId, vpa: qr.payeeVpa, amount });
+
   const payLabel = () => (hold ? tr('hold_to_pay') : tr('tap_to_pay'));
-  const needsOk = () => Boolean(limit && person && !asked);
+  const needsOk = () => Boolean(person && reason() && !approved && (guardian ? true : !asked));
   const refreshButton = () => {
     const left = Math.ceil((lockedUntil - Date.now()) / 1000);
     btn.disabled = left > 0 || !amount || needsOk();
@@ -200,20 +210,90 @@ route('result', (qr) => {
   }
   setCleanup(() => clearInterval(timer));
 
+  const approveNow = async (how) => {
+    approved = true;
+    alertUser(BUZZ.ok);
+    const card = document.querySelector('.result-card');
+    if (card && needNew) {
+      card.className = 'result-card ok';
+      card.querySelector('.result-icon').innerHTML = icon('check');
+      card.querySelector('.result-title').textContent = check.shopName;
+      card.querySelector('.result-sub').textContent = tr('g_ok', { name: person.name });
+    }
+    if (needNew) store.saveShop({ name: qr.payeeName || qr.payeeVpa, vpa: qr.payeeVpa, usualAmount: null });
+    showFamily();
+    refreshButton();
+    await sayAndWait(`${tr('g_ok', { name: person.name })}${needNew ? `. ${tr('g_saved_shop', { shop: check.shopName })}` : ''}`);
+    return how;
+  };
+  const tryCode = async (code) => {
+    if (await checkApproval(code, guardian, request())) { await approveNow('code'); return true; }
+    const err = familyBox.querySelector('#g-err');
+    if (err) { err.hidden = false; err.textContent = tr('g_bad', { name: person.name }); }
+    alertUser(BUZZ.caution);
+    announce(tr('g_bad', { name: person.name }), { force: true });
+    return false;
+  };
+  const askMessage = () => {
+    const base = `${location.origin}${location.pathname}`;
+    const link = requestLink(base, { ...request(), name: check.shopName, user: s.user.name, phone: s.user.phone, lang: P().lang, reason: reason() }, guardian);
+    return tr('g_msg', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa, reason: tr(needNew ? 'g_reason_new' : 'g_reason_limit'), link });
+  };
+
   const showFamily = () => {
     limit = overLimit(amount, s.limits, s.history);
-    if (!limit) { familyBox.hidden = true; return; }
-    const text = tr(limit.reason === 'payment' ? 'over_payment' : 'over_daily', { limit: money(limit.limit), name: person?.name || '' });
-    if (!person) { familyBox.hidden = true; return; }
-    const msg = tr('family_msg_risky', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa });
+    if (!reason() || !person) { familyBox.hidden = true; return; }
     familyBox.hidden = false;
+    if (approved) {
+      familyBox.className = 'family-box approved';
+      familyBox.innerHTML = `<p class="family-text">${icon('check')}<span>${esc(tr('g_ok', { name: person.name }))}</span></p>`;
+      return;
+    }
+    familyBox.className = 'family-box';
+    const text = needNew ? tr('g_new_shop', { name: person.name })
+      : tr(limit.reason === 'payment' ? 'over_payment' : 'over_daily', { limit: money(limit.limit), name: person.name });
+    if (!guardian) { // no Guardian PIN set: the older "ask first" nudge
+      const msg = tr('family_msg_risky', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa });
+      familyBox.innerHTML = `
+        <p class="family-text">${icon('family')}<span>${esc(asked ? tr('asked', { name: person.name }) : text)}</span></p>
+        <a class="btn wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, msg))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('ask_family', { name: person.name }))}</span></a>
+        <a class="btn small wide" id="sms" href="${esc(smsLink(person.phone, msg))}">${esc(tr('ask_family_sms'))}</a>`;
+      const mark = () => { asked = true; setTimeout(() => { showFamily(); refreshButton(); }, 300); };
+      familyBox.querySelector('#wa').addEventListener('click', mark);
+      familyBox.querySelector('#sms').addEventListener('click', mark);
+      return;
+    }
     familyBox.innerHTML = `
-      <p class="family-text">${icon('family')}<span>${esc(asked ? tr('asked', { name: person.name }) : text)}</span></p>
-      <a class="btn wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, msg))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('ask_family', { name: person.name }))}</span></a>
-      <a class="btn small wide" id="sms" href="${esc(smsLink(person.phone, msg))}">${esc(tr('ask_family_sms'))}</a>`;
-    const mark = () => { asked = true; setTimeout(() => { showFamily(); refreshButton(); }, 300); };
-    familyBox.querySelector('#wa').addEventListener('click', mark);
-    familyBox.querySelector('#sms').addEventListener('click', mark);
+      <p class="family-text">${icon('shield')}<span>${esc(text)}</span></p>
+      ${amount ? `
+        <a class="btn wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, askMessage()))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('g_ask', { name: person.name }))}</span></a>
+        <label for="g-code">${esc(tr('g_enter_code', { name: person.name }))}</label>
+        <div class="code-row">
+          <input id="g-code" class="field code-field" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${esc(tr('g_code_ph'))}">
+          <button class="btn primary" id="g-check">${esc(tr('g_check'))}</button>
+        </div>
+        ${canListen ? `<button class="btn small wide" id="g-say">${icon('mic')}<span>${esc(tr('g_say_code'))}</span></button>` : ''}
+        <p class="note warn-note" id="g-err" role="alert" hidden></p>
+        <details class="here">
+          <summary>${icon('family')} ${esc(tr('g_here', { name: person.name }))}</summary>
+          <label for="g-pin">${esc(tr('ap_pin'))}</label>
+          <div class="code-row">
+            <input id="g-pin" class="field code-field" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+            <button class="btn" id="g-pin-ok">${esc(tr('g_check'))}</button>
+          </div>
+        </details>` : `<p class="hint">${esc(tr('g_amount_first'))}</p>`}`;
+    const codeEl = familyBox.querySelector('#g-code');
+    familyBox.querySelector('#g-check')?.addEventListener('click', () => tryCode(codeEl.value));
+    codeEl?.addEventListener('input', () => { if (codeEl.value.replace(/\D/g, '').length === 6) tryCode(codeEl.value); });
+    familyBox.querySelector('#g-say')?.addEventListener('click', async () => {
+      announce(tr('listening'));
+      const d = spokenDigits(await listenAll({ lang: P().lang }));
+      if (d) { codeEl.value = d.slice(0, 6); tryCode(codeEl.value); } else announce(tr('hf_not_heard'), { force: true });
+    });
+    familyBox.querySelector('#g-pin-ok')?.addEventListener('click', async () => {
+      if (await checkGuardianPin(familyBox.querySelector('#g-pin').value, guardian)) approveNow('pin');
+      else { const err = familyBox.querySelector('#g-err'); err.hidden = false; err.textContent = tr('ap_wrong_pin'); alertUser(BUZZ.caution); }
+    });
   };
 
   const onAmount = (v) => {
@@ -231,6 +311,7 @@ route('result', (qr) => {
     }
     amountLevel = a.level;
     asked = false;
+    approved = false; // an approval is for one amount only
     showFamily();
     refreshButton();
   };
@@ -249,7 +330,8 @@ route('result', (qr) => {
     else announce(tr('hf_not_heard'), { force: true });
   });
 
-  const pay = () => { if (!btn.disabled) go('confirm', qr, check, amount); };
+  const finalCheck = () => (approved && needNew ? { ...check, status: 'approved' } : check);
+  const pay = () => { if (!btn.disabled) go('confirm', qr, finalCheck(), amount); };
   if (hold) {
     let t = null;
     btn.addEventListener('pointerdown', (e) => {
@@ -280,6 +362,8 @@ route('result', (qr) => {
       pad.set(String(Math.round(n)));
     }
     if (gen !== screenId()) return;
+    if (btn.disabled && needsOk() && guardian) { if (!(await voiceApproval())) return; }
+    if (gen !== screenId()) return;
     if (btn.disabled) { // a warning, a pause or a family check is pending
       if (needsOk()) {
         await sayAndWait(familyBox.querySelector('.family-text')?.textContent || '');
@@ -296,9 +380,32 @@ route('result', (qr) => {
       pad.set('');
       return voiceAmount();
     }
-    if (yesNo(heard) === 'yes' && !btn.disabled) go('confirm', qr, check, amount);
+    if (yesNo(heard) === 'yes' && !btn.disabled) go('confirm', qr, finalCheck(), amount);
     else announce(tr('hf_not_heard'), { force: true });
   }
+
+  // Voice: ask the guardian on WhatsApp, then say the code they send back.
+  let waitingForCode = false;
+  async function voiceApproval() {
+    const q = `${familyBox.querySelector('.family-text')?.textContent || ''} ${tr('vm_guard_help', { name: person.name })}`;
+    for (let round = 0; round < 3 && gen === screenId() && !approved; round += 1) {
+      const heard = await ask(q, (h) => Boolean(spokenDigits(h).length >= 6 || parseCommand(h, ['tell', 'send', 'call'])), gen);
+      if (!heard || !heard.length) return false;
+      const digits = spokenDigits(heard);
+      if (digits.length >= 6) { const code = digits.slice(0, 6); const box = familyBox.querySelector('#g-code'); if (box) box.value = code; if (await tryCode(code)) return true; continue; }
+      waitingForCode = true;
+      await sayAndWait(tr('g_wait_code', { name: person.name }));
+      familyBox.querySelector('#wa')?.click();
+      return false; // continues when the user comes back to Sahaaya
+    }
+    return approved;
+  }
+  const onBack = () => {
+    if (document.visibilityState !== 'visible' || !waitingForCode || gen !== screenId()) return;
+    waitingForCode = false;
+    setTimeout(() => voiceAmount(), 600);
+  };
+  if (voiceFlow) { document.addEventListener('visibilitychange', onBack); setCleanup(() => { clearInterval(timer); document.removeEventListener('visibilitychange', onBack); }); }
 
   if (danger && voiceDriven(P())) {
     setVoice({
