@@ -1,50 +1,53 @@
-// Accessibility profile. Set once by the user or a family member in plain words (no tests, no diagnoses),
+// Accessibility profile. Set in plain words by the user or a family member (no tests, no diagnoses),
 // then adjusted while the app is used (voice "bigger"/"slower", or Sahaaya noticing missed taps).
 
 export const DEFAULT_PROFILE = {
   lang: 'ml',
   textScale: 1,
-  contrast: false,     // high-contrast colours
-  bigTargets: false,   // larger buttons and spacing
-  voice: false,        // speak every screen and result
-  speechRate: 1,       // 0.6 .. 1.4
-  simple: false,       // fewer words and buttons per screen, "tap here" pointer
-  colourSafe: false,   // blue/orange palette (meaning always also in icons and words)
-  dyslexiaFont: false, // easy-reading font, wider spacing, word highlight when reading aloud
-  tremorSafe: false,   // tremor-tolerant keypad, hold-to-pay
-  visualAlerts: false, // flash + vibrate for alerts
-  payApp: 'any',       // which UPI app to open
+  contrast: false,      // black-and-yellow high contrast
+  bigTargets: false,    // larger buttons and spacing
+  voice: false,         // Sahaaya speaks screens and results
+  handsFree: false,     // after a scan: say the amount, then "yes" to pay
+  screenReader: false,  // user runs TalkBack: Sahaaya stays quiet and lets TalkBack read
+  openScanner: false,   // open the scanner straight away when the app starts
+  speechRate: 1,
+  simple: false,        // fewer words, "tap here" pointer
+  colourSafe: false,    // blue/orange/magenta (meaning also in icons and words)
+  dyslexiaFont: false,  // easy-reading font, wider spacing, word highlight when read aloud
+  tremorSafe: false,    // tremor-tolerant keypad, hold-to-pay
+  visualAlerts: false,  // flash + vibrate for warnings
+  payApp: 'any',
 };
 
-/** First-run default before anyone has chosen: big, clear and spoken, so anyone can start. */
-export const START_PROFILE = { ...DEFAULT_PROFILE, textScale: 1.25, bigTargets: true, voice: true };
+/** First run: big, clear and spoken, so anyone can start. */
+export const START_PROFILE = { ...DEFAULT_PROFILE, textScale: 1.15, bigTargets: true, voice: true };
 
-/** Needs a family member can tick, in plain words. */
-export const NEEDS = ['seeing', 'reading', 'colour', 'hands', 'hearing', 'simple', 'listen'];
+export const NEEDS = ['seeing', 'screenreader', 'reading', 'colour', 'hands', 'hearing', 'simple', 'listen'];
 
-/** Turn ticked needs into settings. Several needs combine. */
 export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) {
   const has = (n) => needs.includes(n);
   const p = { ...DEFAULT_PROFILE, lang, payApp };
-  if (has('seeing')) Object.assign(p, { textScale: 1.6, contrast: true, bigTargets: true, voice: true });
-  if (has('reading')) Object.assign(p, { dyslexiaFont: true, voice: true, textScale: Math.max(p.textScale, 1.15) });
+  if (has('seeing')) Object.assign(p, { textScale: 1.5, contrast: true, bigTargets: true, voice: true, handsFree: true, openScanner: true });
+  if (has('screenreader')) Object.assign(p, { screenReader: true, voice: false, handsFree: true, openScanner: true, bigTargets: true });
+  if (has('reading')) Object.assign(p, { dyslexiaFont: true, voice: !p.screenReader, textScale: Math.max(p.textScale, 1.15) });
   if (has('colour')) p.colourSafe = true;
   if (has('hands')) Object.assign(p, { tremorSafe: true, bigTargets: true });
   if (has('hearing')) p.visualAlerts = true;
-  if (has('simple')) Object.assign(p, { simple: true, bigTargets: true, tremorSafe: true, textScale: Math.max(p.textScale, 1.3), speechRate: 0.85 });
-  if (has('listen')) p.voice = true;
-  // Someone who can't hear the voice and can see the screen gets visual alerts instead of speech.
-  if (has('hearing') && !has('listen') && !has('seeing')) p.voice = false;
+  if (has('simple')) Object.assign(p, { simple: true, bigTargets: true, tremorSafe: true, textScale: Math.max(p.textScale, 1.25), speechRate: 0.85 });
+  if (has('listen') && !p.screenReader) p.voice = true;
+  if (has('hearing') && !has('listen') && !has('seeing')) { p.voice = false; p.handsFree = false; }
   return p;
 }
 
-export const TOGGLES = ['voice', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'dyslexiaFont', 'tremorSafe', 'visualAlerts'];
+export const TOGGLES = ['voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'dyslexiaFont', 'tremorSafe', 'visualAlerts'];
 
 export function activeSettings(p) {
   return TOGGLES.filter((k) => p[k]);
 }
 
-/** Apply a profile to the page: CSS variables and data attributes read by styles.css. */
+/** Does Sahaaya speak out loud? Not when TalkBack is reading for the user. */
+export const speaks = (p) => p.voice && !p.screenReader;
+
 export function applyProfile(p, root = globalThis.document?.documentElement) {
   if (!root) return;
   root.lang = p.lang;

@@ -1,241 +1,19 @@
-// UI and voice strings. Malayalam (ml) is primary; English (en) is the fallback.
-// Malayalam strings should be reviewed by a native speaker.
+// Strings in four languages. English is the fallback for anything missing.
+// Malayalam, Hindi and Tamil should be reviewed by native speakers.
+
+import en from './lang/en.js';
+import ml from './lang/ml.js';
+import hi from './lang/hi.js';
+import ta from './lang/ta.js';
 
 export const LANGS = {
-  ml: { label: 'മലയാളം', speech: 'ml-IN' },
-  en: { label: 'English', speech: 'en-IN' },
+  ml: { label: 'മലയാളം', english: 'Malayalam', speech: 'ml-IN' },
+  en: { label: 'English', english: 'English', speech: 'en-IN' },
+  hi: { label: 'हिन्दी', english: 'Hindi', speech: 'hi-IN' },
+  ta: { label: 'தமிழ்', english: 'Tamil', speech: 'ta-IN' },
 };
 
-const STRINGS = {
-  en: {
-    app_name: 'Sahaaya',
-    tagline: 'Check who you are paying, before you pay.',
-    choose_lang: 'Choose a language',
-    yes: 'Yes', no: 'No', next: 'Next', back: 'Back', save: 'Save', done: 'Done', cancel: 'Cancel', speak: 'Speak',
-
-    who_q: 'Who will use this phone?',
-    who_me: 'I will',
-    who_family: 'Someone in my family. I am helping them.',
-    needs_q_me: 'What would help you?',
-    needs_q_family: 'What would help them?',
-    needs_hint: 'Tick all that apply. You can change this any time.',
-    need_seeing: 'Hard to see small text',
-    need_reading: 'Reading is hard or tiring',
-    need_colour: 'Hard to tell colours apart',
-    need_hands: 'Hands shake, or taps miss',
-    need_hearing: 'Hard to hear',
-    need_simple: 'New to smartphones, keep it simple',
-    need_listen: 'Prefers listening to reading',
-    app_q: 'Which app do you pay with?',
-    app_any: 'Ask each time',
-    preview_title: 'This is how Sahaaya will look',
-    preview_intro: 'Change anything until it feels right.',
-    preview_sample: 'Lakshmi Bakery',
-    preview_sample_sub: 'Same account as always',
-    looks_good: 'Looks good',
-    text_size: 'Text size',
-    speech_speed: 'Speech speed',
-    opt_voice: 'Speak everything aloud',
-    opt_contrast: 'High contrast',
-    opt_bigTargets: 'Big buttons',
-    opt_simple: 'Simple screens',
-    opt_colourSafe: 'Colour-blind friendly',
-    opt_dyslexiaFont: 'Easy-reading text',
-    opt_tremorSafe: 'Hold to pay (stops accidental taps)',
-    opt_visualAlerts: 'Flash and vibrate for warnings',
-    shops_setup_title: 'Add the shops you pay often',
-    shops_setup_intro: 'Do this once, at each shop: scan the shop’s QR so Sahaaya learns its real account. After that, Sahaaya recognises the shop and warns if its QR is ever swapped.',
-    scan_shop: 'Scan a shop’s QR',
-    finish: 'Finish',
-    later: 'Do this later',
-    name_shop_q: 'What is this shop called?',
-    name_shop_hint: 'This QR pays the account {vpa}.',
-    name_shop_from_qr: 'The QR calls itself “{name}”.',
-    shop_saved: '{name} saved.',
-
-    my_shops: 'My shops',
-    settings: 'Settings',
-    voice_btn: 'Voice command',
-    point_camera: 'Point the camera at the shop’s QR code. The phone vibrates faster as you get closer.',
-    camera_error: 'Camera not available here. Use the test codes below.',
-    test_mode: 'Test QR codes',
-    paste_qr: 'Or paste QR text',
-    not_upi: 'This is not a UPI payment code. Do not pay with it.',
-    web_link: 'This QR opens a website, not a payment. Be careful.',
-
-    r_same: '{shop}',
-    r_same_sub: 'Same account as always',
-    r_swapped: 'Stop. Not {shop}’s account',
-    r_swapped_sub: 'This QR says “{shop}”, but it pays a different account from the one you saved. The sticker may have been replaced. Ask the shop before paying.',
-    r_new: 'Not one of your shops',
-    r_new_sub_name: 'This QR pays “{name}”. Sahaaya has not checked this account.',
-    r_new_sub_noname: 'This QR has no name. Sahaaya has not checked this account.',
-    f_receive_money_trick: 'Stop! Scanning a QR always means YOU PAY. You never receive money by scanning.',
-    f_not_a_payment_qr: 'Stop! This is not a normal payment. It may take money from you.',
-    listen_name: 'In your UPI app, listen for the name before entering your PIN.',
-
-    amount_q: 'How much?',
-    say_amount: 'Say the amount',
-    hold_to_pay: 'Hold to pay',
-    tap_to_pay: 'Pay',
-    wait_s: 'Check again ({s})',
-    continue_anyway: 'I checked with the shop. Continue',
-    scan_again: 'Scan again',
-    f_extra_zero: 'Check the amount! You usually pay about {usual} here. Is there an extra zero?',
-    f_more_than_usual: 'More than you usually pay here ({usual}).',
-    f_amount_differs_from_qr: 'The QR asked for {qr}.',
-    f_large_amount: 'This is a large amount.',
-    f_amount_invalid: 'Enter an amount first.',
-    amount_spoken: '{amount} to {name}',
-    usual: 'Usually {amount}',
-
-    opening: 'Opening {app}',
-    opening_sub: 'Enter your PIN there. Listen for the name {app} shows before you do.',
-    open_again: 'Open {app} again',
-    fallback: 'If {app} did not open, open it yourself and scan the same QR there.',
-    save_this_shop: 'Save “{name}” as my shop',
-    save_note: 'Only if you trust it, for example the shop showed you this QR at the counter.',
-    saved: 'Saved.',
-    any_app: 'your UPI app',
-
-    shops_empty: 'No shops saved yet. Add the shops you pay often, so Sahaaya can recognise them.',
-    add_shop: 'Add a shop',
-    remove: 'Remove',
-    removed: 'Removed.',
-
-    language: 'Language',
-    payment_app: 'Payment app',
-    test_payment: 'Test that your payment app opens',
-    test_payment_hint: 'Opens {app} to pay ₹1 to a UPI ID you trust, such as a family member’s. You still confirm with your PIN.',
-    test_vpa_label: 'UPI ID to test with',
-    test_go: 'Open {app} for ₹1',
-    redo_setup: 'Set up again',
-    sample_shops: 'Add sample shops (for trying Sahaaya)',
-    samples_added: 'Sample shops added.',
-    reset_all: 'Clear everything on this phone',
-    reset_confirm: 'This removes settings and saved shops from this phone. Continue?',
-
-    bigger_offer: 'Buttons seem hard to tap. Make them bigger?',
-    listening: 'Listening…',
-    not_understood: 'Sorry, I did not understand. You can say: read, bigger, slower, shops, settings, back.',
-    no_listen: 'Voice commands do not work in this browser.',
-    read_this: 'Read aloud',
-  },
-  ml: {
-    app_name: 'സഹായ',
-    tagline: 'പണം അയക്കുന്നതിന് മുമ്പ് ആർക്കാണെന്ന് ഉറപ്പാക്കൂ.',
-    choose_lang: 'ഭാഷ തിരഞ്ഞെടുക്കൂ',
-    yes: 'അതെ', no: 'ഇല്ല', next: 'അടുത്തത്', back: 'തിരികെ', save: 'സേവ് ചെയ്യൂ', done: 'കഴിഞ്ഞു', cancel: 'റദ്ദാക്കൂ', speak: 'പറയൂ',
-
-    who_q: 'ആരാണ് ഈ ഫോൺ ഉപയോഗിക്കുന്നത്?',
-    who_me: 'ഞാൻ തന്നെ',
-    who_family: 'എന്റെ കുടുംബത്തിലെ ഒരാൾ. ഞാൻ സഹായിക്കുന്നു.',
-    needs_q_me: 'എന്താണ് നിങ്ങൾക്ക് സഹായകരമാകുക?',
-    needs_q_family: 'എന്താണ് അവർക്ക് സഹായകരമാകുക?',
-    needs_hint: 'ബാധകമായതെല്ലാം തിരഞ്ഞെടുക്കൂ. എപ്പോൾ വേണമെങ്കിലും മാറ്റാം.',
-    need_seeing: 'ചെറിയ അക്ഷരം കാണാൻ ബുദ്ധിമുട്ട്',
-    need_reading: 'വായന ബുദ്ധിമുട്ടാണ്, ക്ഷീണിപ്പിക്കും',
-    need_colour: 'നിറങ്ങൾ തിരിച്ചറിയാൻ ബുദ്ധിമുട്ട്',
-    need_hands: 'കൈ വിറയ്ക്കും, തൊടുന്നത് തെറ്റും',
-    need_hearing: 'കേൾക്കാൻ ബുദ്ധിമുട്ട്',
-    need_simple: 'സ്മാർട്ട്ഫോൺ പുതിയതാണ്, ലളിതമായി വേണം',
-    need_listen: 'വായിക്കുന്നതിനേക്കാൾ കേൾക്കാൻ ഇഷ്ടം',
-    app_q: 'ഏത് ആപ്പിലാണ് പണം അയക്കുന്നത്?',
-    app_any: 'ഓരോ തവണയും ചോദിക്കൂ',
-    preview_title: 'സഹായ ഇങ്ങനെയായിരിക്കും',
-    preview_intro: 'ശരിയാകുന്നത് വരെ എന്തും മാറ്റാം.',
-    preview_sample: 'ലക്ഷ്മി ബേക്കറി',
-    preview_sample_sub: 'എപ്പോഴുമുള്ള അതേ അക്കൗണ്ട്',
-    looks_good: 'ശരിയാണ്',
-    text_size: 'അക്ഷര വലിപ്പം',
-    speech_speed: 'സംസാര വേഗം',
-    opt_voice: 'എല്ലാം ഉറക്കെ പറയൂ',
-    opt_contrast: 'കൂടിയ കോൺട്രാസ്റ്റ്',
-    opt_bigTargets: 'വലിയ ബട്ടണുകൾ',
-    opt_simple: 'ലളിതമായ സ്ക്രീനുകൾ',
-    opt_colourSafe: 'നിറാന്ധതയ്ക്ക് അനുയോജ്യം',
-    opt_dyslexiaFont: 'എളുപ്പം വായിക്കാവുന്ന അക്ഷരങ്ങൾ',
-    opt_tremorSafe: 'അമർത്തിപ്പിടിച്ച് അയക്കൽ (അബദ്ധ സ്പർശം തടയും)',
-    opt_visualAlerts: 'മുന്നറിയിപ്പിന് മിന്നലും വിറയലും',
-    shops_setup_title: 'സ്ഥിരമായി പണം അയക്കുന്ന കടകൾ ചേർക്കൂ',
-    shops_setup_intro: 'ഓരോ കടയിലും ഒരിക്കൽ മാത്രം: കടയുടെ QR സ്കാൻ ചെയ്യൂ, സഹായ അതിന്റെ യഥാർത്ഥ അക്കൗണ്ട് ഓർത്തുവയ്ക്കും. പിന്നീട് സഹായ കട തിരിച്ചറിയും, QR മാറ്റിയാൽ മുന്നറിയിപ്പ് നൽകും.',
-    scan_shop: 'കടയുടെ QR സ്കാൻ ചെയ്യൂ',
-    finish: 'പൂർത്തിയായി',
-    later: 'പിന്നീട് ചെയ്യാം',
-    name_shop_q: 'ഈ കടയുടെ പേര് എന്താണ്?',
-    name_shop_hint: 'ഈ QR {vpa} എന്ന അക്കൗണ്ടിലേക്കാണ്.',
-    name_shop_from_qr: 'QR-ൽ എഴുതിയ പേര് “{name}”.',
-    shop_saved: '{name} സേവ് ചെയ്തു.',
-
-    my_shops: 'എന്റെ കടകൾ',
-    settings: 'ക്രമീകരണങ്ങൾ',
-    voice_btn: 'ശബ്ദ നിർദ്ദേശം',
-    point_camera: 'ക്യാമറ കടയുടെ QR കോഡിന് നേരെ പിടിക്കൂ. അടുത്തെത്തുമ്പോൾ ഫോൺ വേഗത്തിൽ വിറയ്ക്കും.',
-    camera_error: 'ഇവിടെ ക്യാമറ ലഭ്യമല്ല. താഴെയുള്ള ടെസ്റ്റ് കോഡുകൾ ഉപയോഗിക്കൂ.',
-    test_mode: 'ടെസ്റ്റ് QR കോഡുകൾ',
-    paste_qr: 'അല്ലെങ്കിൽ QR ടെക്സ്റ്റ് ഒട്ടിക്കൂ',
-    not_upi: 'ഇത് UPI പേയ്മെന്റ് കോഡ് അല്ല. ഇതുപയോഗിച്ച് പണം അയക്കരുത്.',
-    web_link: 'ഈ QR ഒരു വെബ്സൈറ്റ് തുറക്കുന്നു, പേയ്മെന്റ് അല്ല. ശ്രദ്ധിക്കൂ.',
-
-    r_same: '{shop}',
-    r_same_sub: 'എപ്പോഴുമുള്ള അതേ അക്കൗണ്ട്',
-    r_swapped: 'നിർത്തൂ. ഇത് {shop}-ന്റെ അക്കൗണ്ട് അല്ല',
-    r_swapped_sub: 'ഈ QR-ൽ “{shop}” എന്ന് എഴുതിയിട്ടുണ്ട്, പക്ഷേ നിങ്ങൾ സേവ് ചെയ്ത അക്കൗണ്ടിലേക്കല്ല പണം പോകുന്നത്. സ്റ്റിക്കർ മാറ്റിയിരിക്കാം. അയക്കുന്നതിന് മുമ്പ് കടയിൽ ചോദിക്കൂ.',
-    r_new: 'നിങ്ങളുടെ കടകളിൽ ഒന്നല്ല',
-    r_new_sub_name: 'ഈ QR “{name}” എന്നയാൾക്കാണ്. സഹായ ഈ അക്കൗണ്ട് പരിശോധിച്ചിട്ടില്ല.',
-    r_new_sub_noname: 'ഈ QR-ൽ പേരില്ല. സഹായ ഈ അക്കൗണ്ട് പരിശോധിച്ചിട്ടില്ല.',
-    f_receive_money_trick: 'നിർത്തൂ! QR സ്കാൻ ചെയ്താൽ എപ്പോഴും നിങ്ങളാണ് പണം അയക്കുന്നത്. സ്കാൻ ചെയ്താൽ പണം കിട്ടില്ല.',
-    f_not_a_payment_qr: 'നിർത്തൂ! ഇത് സാധാരണ പേയ്മെന്റ് അല്ല. നിങ്ങളുടെ പണം നഷ്ടപ്പെടാം.',
-    listen_name: 'UPI ആപ്പിൽ PIN നൽകുന്നതിന് മുമ്പ് പേര് കേട്ട് ഉറപ്പാക്കൂ.',
-
-    amount_q: 'എത്ര രൂപ?',
-    say_amount: 'തുക പറയൂ',
-    hold_to_pay: 'അയക്കാൻ അമർത്തിപ്പിടിക്കൂ',
-    tap_to_pay: 'അയക്കൂ',
-    wait_s: 'വീണ്ടും പരിശോധിക്കൂ ({s})',
-    continue_anyway: 'കടയിൽ ചോദിച്ച് ഉറപ്പാക്കി. തുടരൂ',
-    scan_again: 'വീണ്ടും സ്കാൻ ചെയ്യൂ',
-    f_extra_zero: 'തുക പരിശോധിക്കൂ! ഇവിടെ സാധാരണ ഏകദേശം {usual} ആണ്. ഒരു പൂജ്യം കൂടുതലുണ്ടോ?',
-    f_more_than_usual: 'ഇവിടെ സാധാരണ അടയ്ക്കുന്നതിനേക്കാൾ ({usual}) കൂടുതൽ.',
-    f_amount_differs_from_qr: 'QR ചോദിച്ചത് {qr}.',
-    f_large_amount: 'ഇതൊരു വലിയ തുകയാണ്.',
-    f_amount_invalid: 'ആദ്യം തുക നൽകൂ.',
-    amount_spoken: '{name}-ന് {amount}',
-    usual: 'സാധാരണ {amount}',
-
-    opening: '{app} തുറക്കുന്നു',
-    opening_sub: 'അവിടെ PIN നൽകൂ. അതിന് മുമ്പ് {app} കാണിക്കുന്ന പേര് കേട്ട് ഉറപ്പാക്കൂ.',
-    open_again: '{app} വീണ്ടും തുറക്കൂ',
-    fallback: '{app} തുറന്നില്ലെങ്കിൽ, അത് സ്വയം തുറന്ന് അതേ QR അവിടെ സ്കാൻ ചെയ്യൂ.',
-    save_this_shop: '“{name}” എന്റെ കടയായി സേവ് ചെയ്യൂ',
-    save_note: 'വിശ്വസിക്കുന്നുവെങ്കിൽ മാത്രം, ഉദാഹരണത്തിന് കടക്കാരൻ കൗണ്ടറിൽ ഈ QR കാണിച്ചുതന്നെങ്കിൽ.',
-    saved: 'സേവ് ചെയ്തു.',
-    any_app: 'UPI ആപ്പ്',
-
-    shops_empty: 'ഇതുവരെ കടകളൊന്നും സേവ് ചെയ്തിട്ടില്ല. സഹായ തിരിച്ചറിയാൻ, സ്ഥിരം കടകൾ ചേർക്കൂ.',
-    add_shop: 'കട ചേർക്കൂ',
-    remove: 'നീക്കം ചെയ്യൂ',
-    removed: 'നീക്കം ചെയ്തു.',
-
-    language: 'ഭാഷ',
-    payment_app: 'പേയ്മെന്റ് ആപ്പ്',
-    test_payment: 'പേയ്മെന്റ് ആപ്പ് തുറക്കുന്നുണ്ടോ എന്ന് പരിശോധിക്കൂ',
-    test_payment_hint: 'വിശ്വസിക്കുന്ന ഒരു UPI ഐഡിയിലേക്ക് (ഉദാ: കുടുംബാംഗം) ₹1 അയക്കാൻ {app} തുറക്കും. PIN നൽകി നിങ്ങൾ തന്നെ ഉറപ്പാക്കണം.',
-    test_vpa_label: 'ടെസ്റ്റിനുള്ള UPI ഐഡി',
-    test_go: '₹1-ന് {app} തുറക്കൂ',
-    redo_setup: 'വീണ്ടും സജ്ജീകരിക്കൂ',
-    sample_shops: 'മാതൃകാ കടകൾ ചേർക്കൂ (പരീക്ഷിക്കാൻ)',
-    samples_added: 'മാതൃകാ കടകൾ ചേർത്തു.',
-    reset_all: 'ഈ ഫോണിലെ എല്ലാം മായ്ക്കൂ',
-    reset_confirm: 'ഈ ഫോണിൽ നിന്ന് ക്രമീകരണങ്ങളും സേവ് ചെയ്ത കടകളും മായും. തുടരണോ?',
-
-    bigger_offer: 'ബട്ടണുകൾ തൊടാൻ ബുദ്ധിമുട്ടുള്ളതായി തോന്നുന്നു. വലുതാക്കണോ?',
-    listening: 'കേൾക്കുന്നു…',
-    not_understood: 'ക്ഷമിക്കണം, മനസ്സിലായില്ല. പറയാം: വായിക്കൂ, വലുതാക്കൂ, പതുക്കെ, കടകൾ, ക്രമീകരണം, തിരികെ.',
-    no_listen: 'ഈ ബ്രൗസറിൽ ശബ്ദ നിർദ്ദേശം ലഭ്യമല്ല.',
-    read_this: 'ഉറക്കെ വായിക്കൂ',
-  },
-};
+const STRINGS = { en, ml, hi, ta };
 
 export function t(lang, key, vars = {}) {
   const str = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
@@ -243,6 +21,18 @@ export function t(lang, key, vars = {}) {
 }
 
 export function missingKeys() {
-  const en = Object.keys(STRINGS.en);
-  return Object.keys(STRINGS).flatMap((l) => en.filter((k) => !(k in STRINGS[l])).map((k) => `${l}.${k}`));
+  const keys = Object.keys(STRINGS.en);
+  return Object.keys(STRINGS).flatMap((l) => keys.filter((k) => !(k in STRINGS[l])).map((k) => `${l}.${k}`));
+}
+
+/** Words that mean "yes" / "no" in each language, for hands-free confirmation. */
+export const YES_WORDS = ['yes', 'yeah', 'ok', 'okay', 'pay', 'sure', 'അതെ', 'ശരി', 'ഉവ്വ്', 'हाँ', 'हां', 'जी', 'ठीक', 'ஆம்', 'சரி', 'ஆமா'];
+export const NO_WORDS = ['no', 'stop', 'cancel', 'wait', 'ഇല്ല', 'വേണ്ട', 'നിർത്ത', 'नहीं', 'नही', 'रुको', 'இல்லை', 'வேண்டாம்', 'நிறுத்து'];
+
+export function yesNo(transcript) {
+  const t_ = ` ${(transcript || '').toLowerCase().trim()} `;
+  const hit = (w) => (/^[a-z]+$/.test(w) ? new RegExp(`\\b${w}\\b`).test(t_) : t_.includes(w));
+  if (NO_WORDS.some(hit)) return 'no';
+  if (YES_WORDS.some(hit)) return 'yes';
+  return null;
 }

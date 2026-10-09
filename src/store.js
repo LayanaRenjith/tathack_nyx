@@ -1,15 +1,20 @@
-// On-device storage: profile, saved shops and payment history. Nothing leaves the phone.
+// On-device storage: user, lock, profile, trusted people, limits, saved shops and payment history.
+// Nothing leaves the phone.
 
 import { START_PROFILE, normaliseProfile } from './profile.js';
 import { sameVpa } from './safety.js';
 
-const KEY = 'sahaaya.v2';
+const KEY = 'sahaaya.v3';
 
 const fresh = () => ({
   setupDone: false,
+  user: { name: '', phone: '', helper: false },
+  lock: { type: 'none', credId: null, codeHash: null, salt: null },
   profile: { ...START_PROFILE },
-  savedShops: [], // { name, vpa, usualAmount }
-  history: [],    // { name, vpa, amount, status, at }
+  trusted: [],                                  // { name, phone, relation }
+  limits: { perPayment: 2000, daily: 5000 },
+  savedShops: [],                               // { name, vpa, usualAmount }
+  history: [],                                  // { name, vpa, amount, status, at }
   largeLimit: 2000,
 });
 
@@ -20,7 +25,8 @@ function read() {
     const raw = globalThis.localStorage?.getItem(KEY) ?? memory;
     if (!raw) return fresh();
     const s = JSON.parse(raw);
-    return { ...fresh(), ...s, profile: normaliseProfile(s.profile) };
+    const f = fresh();
+    return { ...f, ...s, user: { ...f.user, ...s.user }, lock: { ...f.lock, ...s.lock }, limits: { ...f.limits, ...s.limits }, profile: normaliseProfile(s.profile) };
   } catch {
     return fresh();
   }
@@ -45,7 +51,6 @@ export function updateProfile(patch) {
   return update({ profile: normaliseProfile({ ...state.profile, ...patch }) });
 }
 
-/** Save a regular shop's account. Re-saving the same account renames it. */
 export function saveShop({ name, vpa, usualAmount = null }) {
   const clean = (name || '').trim();
   if (!clean || !vpa) return state;
@@ -58,8 +63,17 @@ export function removeShop(vpa) {
   return update({ savedShops: state.savedShops.filter((s) => !sameVpa(s.vpa, vpa)) });
 }
 
+export function addTrusted({ name, phone, relation }) {
+  if (!name || !phone) return state;
+  return update({ trusted: [...state.trusted.filter((p) => p.phone !== phone), { name: name.trim(), phone: phone.trim(), relation: (relation || '').trim() }] });
+}
+
+export function removeTrusted(phone) {
+  return update({ trusted: state.trusted.filter((p) => p.phone !== phone) });
+}
+
 export function addHistory({ name, vpa, amount, status }) {
-  const history = [{ name, vpa, amount, status, at: Date.now() }, ...state.history].slice(0, 100);
+  const history = [{ name, vpa, amount, status, at: Date.now() }, ...state.history].slice(0, 200);
   const recent = history.filter((h) => sameVpa(h.vpa, vpa)).slice(0, 5).map((h) => h.amount).sort((x, y) => x - y);
   const median = recent[Math.floor(recent.length / 2)];
   const savedShops = state.savedShops.map((s) => (sameVpa(s.vpa, vpa) ? { ...s, usualAmount: median } : s));

@@ -7,8 +7,10 @@ import { checkPayment, checkAmount, pauseSeconds, combine, LEVEL, STATUS } from 
 import { rupeesInWords, formatRupees } from '../src/amount.js';
 import { createTapFilter, applyKey } from '../src/keypad.js';
 import { guidanceScore } from '../src/scanner.js';
-import { missingKeys, t } from '../src/i18n.js';
-import { deriveProfile, normaliseProfile, activeSettings, DEFAULT_PROFILE } from '../src/profile.js';
+import { missingKeys, t, yesNo } from '../src/i18n.js';
+import { deriveProfile, normaliseProfile, activeSettings, speaks, DEFAULT_PROFILE } from '../src/profile.js';
+import { hashCode, checkCode, newSalt } from '../src/auth.js';
+import { normalisePhone, whatsappLink, smsLink, overLimit, spentToday } from '../src/family.js';
 import { createTapWatcher } from '../src/adapt.js';
 import { parseCommand } from '../src/commands.js';
 import { DEMO_QRS, SAMPLE_SHOPS } from '../src/demo-codes.js';
@@ -118,7 +120,8 @@ test('needs combine into one profile', () => {
   assert.equal(p.tremorSafe, true);
   assert.equal(p.colourSafe, true);
   assert.equal(p.payApp, 'gpay');
-  assert.ok(p.textScale >= 1.6);
+  assert.ok(p.textScale >= 1.5);
+  assert.equal(p.handsFree, true);
 });
 
 test('simple mode slows speech and protects taps', () => {
@@ -177,6 +180,10 @@ test('voice commands in English and Malayalam', () => {
   assert.equal(parseCommand('വലുതാക്കൂ'), 'bigger');
   assert.equal(parseCommand('പതുക്കെ'), 'slower');
   assert.equal(parseCommand('എന്റെ കടകൾ'), 'shops');
+  assert.equal(parseCommand('पीछे जाओ'), 'back');
+  assert.equal(parseCommand('बड़ा करो'), 'bigger');
+  assert.equal(parseCommand('வரலாறு'), 'history');
+  assert.equal(parseCommand('மெதுவாக'), 'slower');
   assert.equal(parseCommand('banana'), null);
 });
 
@@ -201,7 +208,54 @@ test('camera guidance grows as the QR gets bigger and centred', () => {
   assert.ok(close > far && close > 0.8);
 });
 
-test('Malayalam and English have every string', () => {
+test('all four languages have every string', () => {
   assert.deepEqual(missingKeys(), []);
-  assert.match(t('ml', 'r_swapped', { shop: 'Lakshmi Bakery' }), /Lakshmi Bakery/);
+  for (const l of ['ml', 'en', 'hi', 'ta']) assert.match(t(l, 'r_swapped', { shop: 'Lakshmi Bakery' }), /Lakshmi Bakery/);
+});
+
+test('hands-free yes / no in four languages', () => {
+  assert.equal(yesNo('yes'), 'yes');
+  assert.equal(yesNo('ok pay it'), 'yes');
+  assert.equal(yesNo('അതെ'), 'yes');
+  assert.equal(yesNo('हाँ भेजो'), 'yes');
+  assert.equal(yesNo('ஆம்'), 'yes');
+  assert.equal(yesNo('no wait'), 'no');
+  assert.equal(yesNo('വേണ്ട'), 'no');
+  assert.equal(yesNo('नहीं'), 'no');
+  assert.equal(yesNo('nothing here'), null);
+});
+
+test('screen reader users: Sahaaya stays quiet', () => {
+  const p = deriveProfile({ needs: ['screenreader'] });
+  assert.equal(p.screenReader, true);
+  assert.equal(speaks(p), false);
+  assert.equal(p.handsFree, true);
+  assert.equal(speaks(deriveProfile({ needs: ['seeing'] })), true);
+});
+
+test('app lock code is stored only as a salted hash', async () => {
+  const salt = newSalt();
+  const codeHash = await hashCode('2580', salt);
+  assert.notEqual(codeHash, '2580');
+  assert.equal(await checkCode('2580', { codeHash, salt }), true);
+  assert.equal(await checkCode('0000', { codeHash, salt }), false);
+  assert.equal(await checkCode('25', { codeHash, salt }), false);
+});
+
+test('family alert links', () => {
+  assert.equal(normalisePhone('98470 12345'), '919847012345');
+  assert.equal(normalisePhone('+91 98470-12345'), '919847012345');
+  assert.equal(normalisePhone('09847012345'), '919847012345');
+  assert.match(whatsappLink('9847012345', 'Is this OK?'), /^https:\/\/wa\.me\/919847012345\?text=Is%20this%20OK%3F$/);
+  assert.match(smsLink('9847012345', 'hi'), /^sms:\+919847012345\?body=hi$/);
+});
+
+test('payment limits: per payment and per day', () => {
+  const now = new Date(2026, 9, 9, 18, 0).getTime();
+  const history = [{ amount: 3000, at: now - 3600e3 }, { amount: 9999, at: now - 2 * 864e5 }];
+  assert.equal(spentToday(history, now), 3000);
+  assert.deepEqual(overLimit(2500, { perPayment: 2000 }, [], now), { reason: 'payment', limit: 2000 });
+  assert.deepEqual(overLimit(2500, { perPayment: 5000, daily: 5000 }, history, now), { reason: 'daily', limit: 5000 });
+  assert.equal(overLimit(1500, { perPayment: 2000, daily: 5000 }, history, now), null);
+  assert.equal(overLimit(500, {}, history, now), null);
 });

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sahaaya">
-  <rect width="512" height="512" rx="128" fill="#0e4d3a"/>
-  <circle cx="256" cy="256" r="118" fill="none" stroke="#ffffff" stroke-width="44" stroke-dasharray="560 182" transform="rotate(-135 256 256)" stroke-linecap="round"/>
-  <circle cx="256" cy="256" r="34" fill="#e3a21a"/>
+  <rect width="512" height="512" rx="128" fill="#1f5eff"/>
+  <circle cx="256" cy="256" r="122" fill="none" stroke="#ffffff" stroke-width="48" stroke-dasharray="580 187" transform="rotate(-60 256 256)" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="38" fill="#ff9f1c"/>
 </svg>
