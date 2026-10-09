@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SafeScan demo QR codes</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #111; background: #fff; }
+    h1 { font-size: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 24px; }
+    figure { margin: 0; padding: 16px; border: 2px solid #ccc; border-radius: 12px; break-inside: avoid; }
+    figure.fake { border-color: #b3121b; }
+    figcaption { font-weight: 600; margin-top: 8px; }
+    small { display: block; color: #555; word-break: break-all; font-weight: 400; }
+    .qr img { width: 100%; height: auto; image-rendering: pixelated; }
+    @media print { .note { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>SafeScan demo QR codes (fictional UPI IDs: do not pay real money to them)</h1>
+  <p class="note">Print this page. For the stage demo, cut out "FAKE sticker: Rahul K" and stick it over "Real shop: Sharma Medicals".</p>
+  <div class="grid" id="grid"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script type="module">
+    import { DEMO_QRS } from '../src/demo-codes.js';
+    const grid = document.getElementById('grid');
+    for (const d of DEMO_QRS) {
+      const qr = qrcode(0, 'M');
+      qr.addData(d.text);
+      qr.make();
+      const fig = document.createElement('figure');
+      if (/fake|scam/i.test(d.label)) fig.className = 'fake';
+      fig.innerHTML = `<div class="qr">${qr.createImgTag(8, 16)}</div><figcaption>${d.label}<small>Expect: ${d.expect}</small></figcaption>`;
+      grid.appendChild(fig);
+    }
+  </script>
+</body>
+</html>

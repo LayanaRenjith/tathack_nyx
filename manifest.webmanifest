@@ -1,0 +1,15 @@
+{
+  "name": "SafeScan: safe UPI for everyone",
+  "short_name": "SafeScan",
+  "description": "Check who you are paying before any UPI payment, by voice, vibration and big text, in Malayalam.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f4ee",
+  "theme_color": "#0b3d2e",
+  "lang": "ml",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
