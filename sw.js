@@ -1,7 +1,7 @@
 // Offline support: cache the app shell so the safety check works with no network.
-const CACHE = 'sahaaya-v7';
+const CACHE = 'sahaaya-v8';
 const SHELL = [
-  './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
+  './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
   './src/app.js', './src/ui.js', './src/onboarding.js', './src/home.js', './src/pay.js',
   './src/upi.js', './src/safety.js', './src/match.js', './src/amount.js', './src/family.js', './src/auth.js',
   './src/i18n.js', './src/lang/en.js', './src/lang/ml.js', './src/lang/hi.js', './src/lang/ta.js',
@@ -11,7 +11,8 @@ const SHELL = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(async (c) => {
-    await c.addAll(SHELL);
+    // One file failing must not stop the install (Android only offers "Install app" once this succeeds).
+    await Promise.all(SHELL.map((f) => c.add(f).catch(() => {})));
     // Optional offline QR decoder (added by `npm run vendor`).
     await c.add('./vendor/jsQR.js').catch(() => {});
   }));
@@ -23,16 +24,15 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network first, so a new version shows up as soon as it is pushed; the cache keeps it working offline.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const sameSite = new URL(e.request.url).origin === self.location.origin;
+  if (!sameSite && !e.request.url.includes('jsQR')) return;
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
-      // Cache the CDN copy of jsQR the first time it loads.
-      if (res.ok && e.request.url.includes('jsQR')) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-      }
+    fetch(e.request).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
       return res;
-    })),
+    }).catch(() => caches.match(e.request).then((hit) => hit || caches.match('./index.html'))),
   );
 });

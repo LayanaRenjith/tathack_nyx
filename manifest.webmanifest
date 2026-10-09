@@ -1,7 +1,7 @@
 {
-  "name": "Sahaaya: technology that adapts",
+  "name": "Sahaaya: safe UPI payments",
   "short_name": "Sahaaya",
-  "description": "Adapts to each person's needs and checks who you are paying before any UPI payment, in Malayalam.",
+  "description": "Checks every UPI QR before you pay, speaks your language and keeps family close. Malayalam, English, Hindi, Tamil.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -11,10 +11,22 @@
   "lang": "ml",
   "icons": [
     {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
