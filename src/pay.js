@@ -64,6 +64,7 @@ function wireScanner(onQr) {
   }).then((s) => { stop = s; if (done) s(); }).catch(() => {
     document.getElementById('cam-error').hidden = false;
     document.getElementById('dev').open = true;
+    document.getElementById('dev').classList.add('needed');
   });
   setCleanup(() => stop?.());
   on('[data-demo]', 'click', (e) => once(DEMO_QRS[Number(e.currentTarget.dataset.demo)].text));
@@ -292,7 +293,6 @@ function handOff(qr, check, amount) {
       </div>
       <a class="btn big primary wide" href="${esc(link)}" id="open" data-next>${esc(tr('open_again', { app }))}</a>
       <p class="hint">${esc(tr('fallback', { app }))}</p>
-      <p class="note info-note">${icon('finger')}<span>${esc(tr('bio_upi_tip', { app }))}</span></p>
       ${offerSave ? `<button class="btn wide" id="save">${icon('store')}<span>${esc(tr('save_this_shop', { name: qr.payeeName }))}</span></button><p class="hint">${esc(tr('save_note'))}</p>` : ''}
       <button class="btn ghost wide" id="done">${esc(tr('done'))}</button>
     </section>`, { title: tr('step_pay'), step: 4 });

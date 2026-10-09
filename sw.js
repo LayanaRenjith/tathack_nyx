@@ -1,5 +1,5 @@
 // Offline support: cache the app shell so the safety check works with no network.
-const CACHE = 'sahaaya-v4';
+const CACHE = 'sahaaya-v5';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
   './src/app.js', './src/ui.js', './src/onboarding.js', './src/home.js', './src/pay.js',

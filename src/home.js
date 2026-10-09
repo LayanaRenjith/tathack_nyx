@@ -180,6 +180,7 @@ route('profile', () => {
         <div class="lang-grid" role="group" aria-labelledby="app-label">
           ${Object.entries(PAY_APPS).map(([k, a]) => `<button class="chip ${p.payApp === k ? 'is-on' : ''}" data-app="${k}" aria-pressed="${p.payApp === k}">${esc(k === 'any' ? tr('app_any') : a.label)}</button>`).join('')}
         </div>
+        <p class="hint">${esc(tr('bio_upi_tip', { app: appLabel }))}</p>
       </div>
       <div class="list-group">
         ${row('r-lock', 'blue', 'lock', tr('lock_label'), lockLabel)}
