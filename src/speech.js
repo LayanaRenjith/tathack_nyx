@@ -1,56 +1,96 @@
-// Voice in and out, plus vibration patterns. Wraps the browser Web Speech API.
-// Text-to-speech works offline when the phone has the voice installed;
-// speech recognition in Chrome needs a network connection.
+// Voice in and out, word highlighting, test tone, and vibration patterns (Web Speech, Web Audio, Vibration APIs).
+// Text-to-speech works offline when the phone has the voice; Chrome speech recognition needs a network.
 
 import { LANGS } from './i18n.js';
 
 let currentLang = 'ml';
-let enabled = true;
+let currentRate = 1;
 
 export function setSpeechLang(lang) { currentLang = lang; }
-export function setSpeechEnabled(on) { enabled = on; if (!on) stopSpeaking(); }
+export function setSpeechRate(rate) { currentRate = rate; }
+
+export const canSpeak = 'speechSynthesis' in globalThis;
 
 function pickVoice(bcp47) {
-  const voices = window.speechSynthesis?.getVoices?.() || [];
-  return voices.find((v) => v.lang === bcp47)
-    || voices.find((v) => v.lang?.startsWith(bcp47.split('-')[0]))
-    || null;
+  const voices = globalThis.speechSynthesis?.getVoices?.() || [];
+  return voices.find((v) => v.lang === bcp47) || voices.find((v) => v.lang?.startsWith(bcp47.split('-')[0])) || null;
 }
 
-/** True if the phone has a voice for the chosen language. */
 export function hasVoiceFor(lang) {
   return Boolean(pickVoice(LANGS[lang]?.speech || 'en-IN'));
 }
 
-export function speak(text, { lang = currentLang, interrupt = true, rate } = {}) {
-  if (!enabled || !text || !('speechSynthesis' in window)) return Promise.resolve();
-  const synth = window.speechSynthesis;
-  if (interrupt) synth.cancel();
+function utter(text, lang, rate) {
   const bcp = LANGS[lang]?.speech || 'en-IN';
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = bcp;
+  const voice = pickVoice(bcp);
+  if (voice) u.voice = voice;
+  u.rate = rate ?? currentRate;
+  return u;
+}
+
+export function speak(text, { lang = currentLang, interrupt = true, rate } = {}) {
+  if (!text || !canSpeak) return Promise.resolve();
+  if (interrupt) speechSynthesis.cancel();
   return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = bcp;
-    const voice = pickVoice(bcp);
-    if (voice) u.voice = voice;
-    u.rate = rate ?? 0.95;
+    const u = utter(text, lang, rate);
     u.onend = resolve;
     u.onerror = resolve;
-    synth.speak(u);
+    speechSynthesis.speak(u);
   });
 }
 
 export function stopSpeaking() {
-  window.speechSynthesis?.cancel?.();
+  globalThis.speechSynthesis?.cancel?.();
+}
+
+/**
+ * Read an element aloud and highlight each word as it is spoken (dyslexia support).
+ * Wraps the element's words in spans once. Browsers that don't send word boundaries
+ * (some Malayalam voices) still read aloud, just without the highlight.
+ */
+export function speakWithHighlight(el, { lang = currentLang } = {}) {
+  if (!el || !canSpeak) return Promise.resolve();
+  if (!el.dataset.wrapped) {
+    const text = el.textContent;
+    el.textContent = '';
+    let offset = 0;
+    for (const part of text.split(/(\s+)/)) {
+      if (/^\s+$/.test(part) || !part) { el.appendChild(document.createTextNode(part)); }
+      else {
+        const s = document.createElement('span');
+        s.className = 'word';
+        s.dataset.start = String(offset);
+        s.textContent = part;
+        el.appendChild(s);
+      }
+      offset += part.length;
+    }
+    el.dataset.wrapped = '1';
+  }
+  const words = [...el.querySelectorAll('.word')];
+  const text = el.textContent;
+  speechSynthesis.cancel();
+  return new Promise((resolve) => {
+    const u = utter(text, lang);
+    u.onboundary = (e) => {
+      if (e.name && e.name !== 'word') return;
+      words.forEach((w) => w.classList.remove('speaking'));
+      const hit = words.filter((w) => Number(w.dataset.start) <= e.charIndex).at(-1);
+      hit?.classList.add('speaking');
+    };
+    const done = () => { words.forEach((w) => w.classList.remove('speaking')); resolve(); };
+    u.onend = done;
+    u.onerror = done;
+    speechSynthesis.speak(u);
+  });
 }
 
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 export const canListen = Boolean(Recognition);
 
-/**
- * Listen once and resolve with the transcript ('' on failure).
- * Shop names are proper nouns and usually written in English in UPI QR codes,
- * so callers can force lang 'en' for name capture.
- */
+/** Listen once; resolves with the transcript ('' on failure or timeout). */
 export function listenOnce({ lang = currentLang, timeoutMs = 7000 } = {}) {
   if (!Recognition) return Promise.resolve('');
   return new Promise((resolve) => {
@@ -64,38 +104,33 @@ export function listenOnce({ lang = currentLang, timeoutMs = 7000 } = {}) {
     rec.onerror = () => finish('');
     rec.onend = () => finish('');
     setTimeout(() => finish(''), timeoutMs);
-    rec.start();
+    try { rec.start(); } catch { finish(''); }
   });
 }
 
-/** Continuous listening (deaf merchant soundbox mode). Returns a stop() function. */
-export function listenContinuous(onText, { lang = 'en' } = {}) {
-  if (!Recognition) return () => {};
-  let active = true;
-  const rec = new Recognition();
-  rec.lang = LANGS[lang]?.speech || 'en-IN';
-  rec.continuous = true;
-  rec.interimResults = false;
-  rec.onresult = (e) => {
-    const last = e.results[e.results.length - 1];
-    if (last?.isFinal) onText(last[0].transcript);
-  };
-  rec.onend = () => { if (active) { try { rec.start(); } catch {} } };
-  rec.onerror = () => {};
-  rec.start();
-  return () => { active = false; try { rec.stop(); } catch {} };
+/** A short 880 Hz tone for the hearing check. */
+export function playTone({ ms = 700, hz = 880, volume = 0.25 } = {}) {
+  const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!Ctx) return Promise.resolve(false);
+  const ctx = new Ctx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = hz;
+  gain.gain.value = volume;
+  osc.connect(gain).connect(ctx.destination);
+  osc.start();
+  return new Promise((resolve) => setTimeout(() => { osc.stop(); ctx.close(); resolve(true); }, ms));
 }
 
-// Distinct vibration patterns so blind and deaf users can feel the result.
+// Distinct vibration patterns, always paired with text and icons, never used alone.
 export const BUZZ = {
   tick: [30],
   found: [80, 60, 80],
   ok: [200],
   caution: [300, 150, 300],
   danger: [600, 200, 600, 200, 600],
-  received: [400, 100, 400],
 };
 
 export function vibrate(pattern) {
-  try { navigator.vibrate?.(pattern); } catch {}
+  try { globalThis.navigator?.vibrate?.(pattern); } catch {}
 }

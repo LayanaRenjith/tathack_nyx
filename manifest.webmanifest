@@ -1,7 +1,7 @@
 {
-  "name": "SafeScan: safe UPI for everyone",
-  "short_name": "SafeScan",
-  "description": "Check who you are paying before any UPI payment, by voice, vibration and big text, in Malayalam.",
+  "name": "Sahaaya: technology that adapts",
+  "short_name": "Sahaaya",
+  "description": "Adapts to each person's needs and checks who you are paying before any UPI payment, in Malayalam.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -10,6 +10,11 @@
   "theme_color": "#0b3d2e",
   "lang": "ml",
   "icons": [
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

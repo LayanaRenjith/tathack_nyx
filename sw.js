@@ -1,10 +1,10 @@
 // Offline support: cache the app shell so the safety check works with no network.
-const CACHE = 'safescan-v1';
+const CACHE = 'sahaaya-v2';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg',
   './src/app.js', './src/upi.js', './src/safety.js', './src/match.js', './src/amount.js',
   './src/i18n.js', './src/speech.js', './src/keypad.js', './src/scanner.js', './src/store.js',
-  './src/soundbox.js', './src/demo-codes.js',
+  './src/demo-codes.js', './src/profile.js', './src/commands.js', './src/ui.js', './src/setup.js', './src/pay.js',
 ];
 
 self.addEventListener('install', (e) => {

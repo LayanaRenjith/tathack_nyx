@@ -1,30 +1,40 @@
-// Demo QR payloads for testing and the stage demo. All UPI IDs are fictional.
-// Print them as real QR codes with tools/print-qrs.html.
+// Sample shops and QR payloads for testing. All UPI IDs are fictional.
+// Print the QR codes with tools/print-qrs.html.
+
+export const SAMPLE_SHOPS = [
+  { name: 'Lakshmi Bakery', vpa: 'lakshmibakery@okaxis', usualAmount: 250 },
+  { name: 'Sharma Medicals', vpa: 'sharmamedicals@okaxis', usualAmount: 500 },
+];
 
 export const DEMO_QRS = [
   {
-    label: 'Real shop: Sharma Medicals',
-    expect: 'ok (when you say "Sharma Medicals")',
-    text: 'upi://pay?pa=sharmamedicals@okaxis&pn=Sharma%20Medicals&mc=5912&cu=INR',
+    label: 'Lakshmi Bakery (real)',
+    expect: 'same account as before (after adding sample shops)',
+    text: 'upi://pay?pa=lakshmibakery@okaxis&pn=Lakshmi%20Bakery&mc=5462&cu=INR',
   },
   {
-    label: 'FAKE sticker: Rahul K',
-    expect: 'danger: name mismatch',
-    text: 'upi://pay?pa=rahulk1998@ybl&pn=Rahul%20K&cu=INR',
+    label: 'Lakshmi Bakery (swapped sticker)',
+    expect: 'different account, even though the name looks right',
+    text: 'upi://pay?pa=lakshmi.bakery7@ybl&pn=Lakshmi%20Bakery&cu=INR',
   },
   {
-    label: 'Scam: "scan to receive refund"',
-    expect: 'danger: receive-money trick',
+    label: 'Lakshmi Bakery asks ₹2,500',
+    expect: 'amount differs from what you planned (₹250)',
+    text: 'upi://pay?pa=lakshmibakery@okaxis&pn=Lakshmi%20Bakery&am=2500&mc=5462&cu=INR',
+  },
+  {
+    label: 'Green Tea Stall (new shop)',
+    expect: 'new account, not checked',
+    text: 'upi://pay?pa=greenteastall@okicici&pn=Green%20Tea%20Stall&cu=INR',
+  },
+  {
+    label: '"Scan to receive refund"',
+    expect: 'stop: scanning always means you pay',
     text: 'upi://pay?pa=refund.helpdesk@paytm&pn=Refund%20Desk&am=4999&tn=Scan%20to%20receive%20your%20refund&cu=INR',
   },
   {
-    label: 'Tea stall: Kumar Tea Stall',
-    expect: 'ok / caution (personal account)',
-    text: 'upi://pay?pa=9876543210@ybl&pn=Kumar%20Tea%20Stall&cu=INR',
-  },
-  {
-    label: 'Not UPI: website link',
-    expect: 'danger: not a payment code',
+    label: 'Website link (not UPI)',
+    expect: 'not a payment code',
     text: 'https://example.com/win-prize',
   },
 ];

@@ -1,7 +1,7 @@
 {
-  "name": "safescan",
+  "name": "sahaaya",
   "version": "0.1.0",
-  "description": "Safe, accessible UPI payments: check who you are paying before you pay, by voice, vibration and big text, in Malayalam.",
+  "description": "Sahaaya adapts to each person's needs and checks who you are paying before any UPI payment, in Malayalam.",
   "type": "module",
   "private": true,
   "scripts": {

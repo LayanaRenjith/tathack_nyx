@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SafeScan demo QR codes</title>
+  <title>Sahaaya sample QR codes</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 24px; color: #111; background: #fff; }
     h1 { font-size: 20px; }
@@ -17,8 +17,8 @@
   </style>
 </head>
 <body>
-  <h1>SafeScan demo QR codes (fictional UPI IDs: do not pay real money to them)</h1>
-  <p class="note">Print this page. For the stage demo, cut out "FAKE sticker: Rahul K" and stick it over "Real shop: Sharma Medicals".</p>
+  <h1>Sahaaya sample QR codes (fictional UPI IDs: do not pay real money to them)</h1>
+  <p class="note">Print this page to test scanning. Red-bordered codes should trigger a warning.</p>
   <div class="grid" id="grid"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
   <script type="module">
@@ -29,7 +29,7 @@
       qr.addData(d.text);
       qr.make();
       const fig = document.createElement('figure');
-      if (/fake|scam/i.test(d.label)) fig.className = 'fake';
+      if (/swapped|refund|website|2,500/i.test(d.label)) fig.className = 'fake';
       fig.innerHTML = `<div class="qr">${qr.createImgTag(8, 16)}</div><figcaption>${d.label}<small>Expect: ${d.expect}</small></figcaption>`;
       grid.appendChild(fig);
     }

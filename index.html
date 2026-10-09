@@ -4,19 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b3d2e">
-  <meta name="description" content="SafeScan checks who you are paying before any UPI payment, by voice, vibration and big text, in Malayalam.">
-  <title>SafeScan</title>
+  <meta name="description" content="Sahaaya adapts to each person's needs and checks who you are paying before any UPI payment, in Malayalam.">
+  <title>Sahaaya</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Noto+Sans+Malayalam:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body data-mode="standard">
+<body>
   <a class="skip-link" href="#app">Skip to content</a>
-  <main id="app" aria-live="off"></main>
-  <!-- Screen-reader announcements -->
+  <main id="app"></main>
+  <button id="voice-btn" class="voice-btn" type="button" aria-label="Voice command"><span aria-hidden="true">🎤</span></button>
   <div id="live" class="sr-only" role="status" aria-live="polite"></div>
-  <noscript>SafeScan needs JavaScript to run.</noscript>
+  <noscript>Sahaaya needs JavaScript to run.</noscript>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
