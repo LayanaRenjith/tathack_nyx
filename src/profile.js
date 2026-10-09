@@ -18,6 +18,8 @@ export const DEFAULT_PROFILE = {
   tremorSafe: false,    // tremor-tolerant keypad, hold-to-pay
   visualAlerts: false,  // flash + vibrate for warnings
   payApp: 'any',
+  voiceName: '',        // chosen text-to-speech voice ('' = best available)
+  font: 'standard',     // 'standard' | 'easy' (Atkinson Hyperlegible) | 'dyslexic' (OpenDyslexic)
 };
 
 /** First run: big, clear and spoken, so anyone can start. */
@@ -31,7 +33,7 @@ export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) 
   if (has('blind')) Object.assign(p, { voiceOnly: true, voice: true, handsFree: true, bigTargets: true, textScale: 1.3, speechRate: 0.95 });
   if (has('seeing')) Object.assign(p, { textScale: 1.5, contrast: true, bigTargets: true, voice: true, handsFree: true, openScanner: true });
   if (has('screenreader')) Object.assign(p, { screenReader: true, voiceOnly: false, voice: false, handsFree: true, openScanner: true, bigTargets: true });
-  if (has('reading')) Object.assign(p, { dyslexiaFont: true, voice: !p.screenReader, textScale: Math.max(p.textScale, 1.15) });
+  if (has('reading')) Object.assign(p, { dyslexiaFont: true, font: 'dyslexic', voice: !p.screenReader, textScale: Math.max(p.textScale, 1.15) });
   if (has('colour')) p.colourSafe = true;
   if (has('hands')) Object.assign(p, { tremorSafe: true, bigTargets: true });
   if (has('hearing')) p.visualAlerts = true;
@@ -41,7 +43,7 @@ export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) 
   return p;
 }
 
-export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'dyslexiaFont', 'tremorSafe', 'visualAlerts'];
+export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'tremorSafe', 'visualAlerts'];
 
 export function activeSettings(p) {
   return TOGGLES.filter((k) => p[k]);
@@ -57,9 +59,10 @@ export function applyProfile(p, root = globalThis.document?.documentElement) {
   if (!root) return;
   root.lang = p.lang;
   root.style.setProperty('--scale', String(p.textScale));
-  const flags = { huge: p.textScale >= 1.45, contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: p.dyslexiaFont };
+  const font = p.font === 'dyslexic' ? 'dyslexic' : (p.font === 'easy' || p.dyslexiaFont) ? 'easy' : null;
+  const flags = { huge: p.textScale >= 1.45, contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: font === 'dyslexic' || p.dyslexiaFont, font };
   for (const [k, v] of Object.entries(flags)) {
-    if (v) root.dataset[k] = 'on'; else delete root.dataset[k];
+    if (v) root.dataset[k] = typeof v === 'string' ? v : 'on'; else delete root.dataset[k];
   }
 }
 

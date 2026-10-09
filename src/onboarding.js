@@ -17,48 +17,40 @@ let draft = { needs: [], payApp: 'any' };
 const say = (text) => { if (!P().screenReader) speak(text, { lang: P().lang }); };
 const progress = (n) => `<div class="progress" role="progressbar" aria-valuemin="1" aria-valuemax="${TOTAL}" aria-valuenow="${n}"><span style="width:${(n / TOTAL) * 100}%"></span></div>`;
 
-export const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 360 270" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+export const WELCOME_ART = `<svg class="welcome-art" viewBox="0 0 360 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd9b0"/><stop offset=".55" stop-color="#fdeccf"/><stop offset="1" stop-color="#f8f1e4"/></linearGradient>
-    <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff6d6"/><stop offset="1" stop-color="#fff6d6" stop-opacity="0"/></radialGradient>
-    <radialGradient id="safe" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7fd3a1" stop-opacity=".55"/><stop offset="1" stop-color="#7fd3a1" stop-opacity="0"/></radialGradient>
+    <linearGradient id="wbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e3f1e6"/><stop offset=".55" stop-color="#f6f1e4"/><stop offset="1" stop-color="#fde4cf"/></linearGradient>
+    <radialGradient id="wglow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="wscreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f3f8f4"/></linearGradient>
+    <linearGradient id="wok" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a9d70"/><stop offset="1" stop-color="#2b6a4c"/></linearGradient>
+    <filter id="wsh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#2b4a3a" flood-opacity=".22"/></filter>
+    <filter id="wsh2" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#2b4a3a" flood-opacity=".18"/></filter>
   </defs>
-  <rect width="360" height="270" fill="url(#sky)"/>
-  <circle cx="92" cy="92" r="70" fill="url(#glow)"/><circle cx="92" cy="92" r="26" fill="#ffc96b"/>
-  <path d="M0 196 C70 168 130 182 200 170 C260 160 310 172 360 160 V270 H0Z" fill="#cfe3cf"/>
-  <!-- coconut palms -->
-  <g fill="none" stroke="#6f9a72" stroke-width="5" stroke-linecap="round"><path d="M40 196 C44 160 40 130 50 104"/><path d="M330 178 C326 146 330 120 322 98"/></g>
-  <g fill="#7fae84"><path d="M50 104 c-18 -6 -34 2 -42 12 c16 -4 30 -6 42 -12z"/><path d="M50 104 c4 -18 20 -26 34 -26 c-10 8 -20 16 -34 26z"/><path d="M50 104 c16 -8 34 -2 42 10 c-16 -4 -30 -6 -42 -10z"/><path d="M50 104 c-8 -16 -4 -32 6 -40 c-2 14 -2 26 -6 40z"/>
-    <path d="M322 98 c18 -6 32 2 38 12 c-14 -4 -26 -6 -38 -12z"/><path d="M322 98 c-4 -16 -20 -24 -32 -24 c10 8 18 14 32 24z"/><path d="M322 98 c-14 -6 -30 0 -36 10 c14 -4 26 -6 36 -10z"/></g>
-  <!-- little shop -->
-  <g transform="translate(196 104)">
-    <rect x="0" y="34" width="118" height="82" rx="6" fill="#f3e2c7"/>
-    <path d="M-6 34 h130 l-8 -24 h-114z" fill="#3d7a5c"/>
-    <g fill="#fff"><path d="M8 10 h12 l-3 24 h-14z"/><path d="M36 10 h12 l1 24 h-14z"/><path d="M64 10 h12 l5 24 h-14z"/><path d="M92 10 h12 l9 24 h-14z"/></g>
-    <rect x="0" y="80" width="118" height="10" fill="#b98a5e"/><rect x="8" y="46" width="44" height="30" rx="3" fill="#fff8ec"/>
-    <g fill="#e9a54a"><circle cx="18" cy="58" r="5"/><circle cx="30" cy="60" r="5"/><circle cx="42" cy="57" r="5"/></g>
-    <rect x="72" y="44" width="34" height="36" rx="4" fill="#fff" stroke="#23302a" stroke-width="2"/>
-    <g fill="#23302a"><rect x="77" y="49" width="8" height="8"/><rect x="93" y="49" width="8" height="8"/><rect x="77" y="66" width="8" height="8"/><rect x="88" y="60" width="4" height="4"/><rect x="94" y="66" width="6" height="3"/><rect x="95" y="71" width="3" height="5"/></g>
+  <rect width="360" height="300" fill="url(#wbg)"/>
+  <circle cx="60" cy="60" r="70" fill="#cfe6d5" opacity=".7"/><circle cx="318" cy="250" r="80" fill="#fbd3b4" opacity=".55"/><circle cx="300" cy="40" r="26" fill="#ffd98a" opacity=".8"/>
+  <circle cx="180" cy="152" r="128" fill="url(#wglow)"/>
+  <circle cx="180" cy="152" r="112" fill="none" stroke="#3d7a5c" stroke-opacity=".22" stroke-width="2" stroke-dasharray="3 9" stroke-linecap="round"/>
+  <g fill="#3d7a5c" opacity=".35"><circle cx="34" cy="168" r="3"/><circle cx="330" cy="120" r="3"/><circle cx="92" cy="268" r="2.5"/><circle cx="262" cy="22" r="2.5"/></g>
+  <!-- phone -->
+  <g transform="rotate(-7 180 152)" filter="url(#wsh)">
+    <rect x="122" y="40" width="116" height="226" rx="22" fill="#1f2a25"/>
+    <rect x="128" y="46" width="104" height="214" rx="17" fill="url(#wscreen)"/>
+    <rect x="164" y="51" width="32" height="5" rx="2.5" fill="#1f2a25"/>
+    <rect x="138" y="68" width="40" height="6" rx="3" fill="#cfd8d2"/><circle cx="220" cy="71" r="5" fill="#e7f3ea"/>
+    <circle cx="180" cy="116" r="30" fill="url(#wok)"/>
+    <path d="M166 116 l10 10 l19 -21" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="146" y="158" width="68" height="8" rx="4" fill="#23302a"/>
+    <rect x="152" y="172" width="56" height="6" rx="3" fill="#9fb3a7"/>
+    <text x="180" y="208" text-anchor="middle" font-family="Baloo 2, system-ui, sans-serif" font-weight="800" font-size="24" fill="#23302a">₹250</text>
+    <rect x="140" y="222" width="80" height="24" rx="12" fill="#3d7a5c"/><rect x="160" y="232" width="40" height="5" rx="2.5" fill="#fff" opacity=".9"/>
   </g>
-  <!-- grandmother, holding her phone up to the QR -->
-  <g transform="translate(118 112)">
-    <path d="M14 150 C10 108 18 78 46 70 C74 78 84 108 80 150Z" fill="#e7b94a"/>
-    <path d="M30 76 C46 92 58 120 62 150 L80 150 C84 108 74 78 46 70Z" fill="#c9553f"/>
-    <path d="M24 92 c-10 10 -12 26 -6 36" stroke="#b9853c" stroke-width="9" stroke-linecap="round" fill="none"/>
-    <path d="M66 86 C80 80 92 70 98 58" stroke="#e0a77f" stroke-width="9" stroke-linecap="round" fill="none"/>
-    <rect x="90" y="30" width="18" height="30" rx="4" fill="#23302a" transform="rotate(14 99 45)"/>
-    <rect x="93" y="34" width="12" height="20" rx="2" fill="#9fe0b8" transform="rotate(14 99 45)"/>
-    <circle cx="46" cy="50" r="19" fill="#e0a77f"/>
-    <path d="M27 48 a19 19 0 0 1 38 -4 c-6 -10 -30 -12 -38 4z" fill="#f4f1ec"/><circle cx="34" cy="34" r="9" fill="#f4f1ec"/>
-    <path d="M50 50 q4 3 8 0" stroke="#7a4a33" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="44" cy="48" r="1.8" fill="#4a3226"/><circle cx="56" cy="47" r="1.8" fill="#4a3226"/>
-    <path d="M46 57 q5 4 10 0" stroke="#a5523e" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="51" cy="44" r="1.4" fill="#c9553f"/>
+  <!-- what Sahaaya does, around the phone -->
+  <g filter="url(#wsh2)">
+    <g transform="translate(52 84)"><circle r="27" fill="#fff"/><circle r="20" fill="#fdeaea"/><path d="M-7 -7 l14 14 M7 -7 l-14 14" stroke="#d33a3a" stroke-width="4" stroke-linecap="round"/></g>
+    <g transform="translate(306 96)"><circle r="27" fill="#fff"/><circle r="20" fill="#eeebfb"/><path d="M-9 -4 v8 h5 l7 6 v-20 l-7 6z" fill="#6d55c9"/><path d="M6 -6 a8 8 0 0 1 0 12" stroke="#6d55c9" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>
+    <g transform="translate(60 216)"><circle r="27" fill="#fff"/><circle r="20" fill="#fdebec"/><path d="M0 9 c-10 -6 -13 -11 -9 -15 c3 -3 7 -2 9 1 c2 -3 6 -4 9 -1 c4 4 1 9 -9 15z" fill="#d0475a"/></g>
+    <g transform="translate(300 214)"><circle r="27" fill="#fff"/><circle r="20" fill="#fdf1e1"/><g fill="#c46a07"><rect x="-9" y="-9" width="7" height="7" rx="1"/><rect x="2" y="-9" width="7" height="7" rx="1"/><rect x="-9" y="2" width="7" height="7" rx="1"/><rect x="3" y="3" width="3" height="3"/><rect x="7" y="7" width="3" height="3"/></g></g>
   </g>
-  <!-- the check: a green shield glowing over the phone -->
-  <circle cx="230" cy="122" r="34" fill="url(#safe)"/>
-  <g transform="translate(214 102)"><path d="M16 0 l16 6 v12 c0 10 -7 17 -16 20 c-9 -3 -16 -10 -16 -20 v-12z" fill="#2f8a5b"/><path d="M9 18 l5 5 l9 -10" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
-  <!-- family, one tap away -->
-  <g transform="translate(18 18)"><rect width="128" height="40" rx="20" fill="#fff" opacity=".92"/><circle cx="20" cy="20" r="13" fill="#eeebfb"/><path d="M14 26 c1 -5 4 -7 6 -7 s5 2 6 7" fill="#6d55c9"/><circle cx="20" cy="14" r="4" fill="#6d55c9"/>
-    <path d="M44 15 h58 M44 25 h40" stroke="#c9c3e9" stroke-width="4" stroke-linecap="round"/><path d="M112 14 c-3 -4 -9 -1 -6 4 l6 6 l6 -6 c3 -5 -3 -8 -6 -4z" fill="#d0475a"/></g>
 </svg>`;
 
 // ---------- Welcome ----------
@@ -67,11 +59,16 @@ route('welcome', () => {
   applySettings();
   render(`
     <section class="screen welcome">
-      <div class="welcome-hero">${WELCOME_ART}<div class="brand-chip"><span class="logo" aria-hidden="true"></span>${esc(tr('app_name'))}</div></div>
+      <div class="welcome-hero">${WELCOME_ART}</div>
       <div class="readable cover-copy">
-        <h1 class="cover-title">${esc(tr('cover_title'))}</h1>
-        <p class="cover-sub">${esc(tr('cover_sub'))}</p>
+        <div class="brand-lockup"><span class="logo big" aria-hidden="true"></span><h1 class="hero-title">${esc(tr('app_name'))}</h1></div>
+        <p class="cover-sub">${esc(tr('tagline'))}</p>
       </div>
+      <ul class="promise">
+        <li class="tone-red-soft">${icon('stop')}<span>${esc(tr('promise_fake'))}</span></li>
+        <li class="tone-purple">${icon('speaker')}<span>${esc(tr('promise_voice'))}</span></li>
+        <li class="tone-pink">${icon('family')}<span>${esc(tr('promise_family'))}</span></li>
+      </ul>
       <div class="lang-list" role="radiogroup" aria-label="${esc(tr('choose_lang'))}">
         <p class="label">${icon('globe')} ${esc(tr('choose_lang'))}</p>
         ${Object.entries(LANGS).map(([code, l]) => `<button class="lang-row ${P().lang === code ? 'is-on' : ''}" role="radio" data-lang="${code}" aria-checked="${P().lang === code}" lang="${code}"><span class="grow">${esc(l.label)}</span><span class="lang-check">${icon('check')}</span></button>`).join('')}
@@ -79,7 +76,7 @@ route('welcome', () => {
       <button class="btn big primary wide" id="start" data-next>${esc(tr('get_started'))}</button>
       ${canListen ? `<button class="btn big wide voice-start" id="by-voice">${icon('mic')}<span>${esc(tr('voice_setup'))}</span></button>` : ''}
     </section>`, { top: null, title: tr('app_name') });
-  say(`${tr('cover_title')} ${tr('cover_sub')} ${tr('choose_lang')}.`);
+  say(`${tr('app_name')}. ${tr('tagline')} ${tr('choose_lang')}.`);
   on('[data-lang]', 'click', (e) => { store.updateProfile({ lang: e.currentTarget.dataset.lang }); applySettings(); replace('welcome'); });
   on('#start', 'click', () => go('signup'));
   on('#by-voice', 'click', () => go('voice-setup'));

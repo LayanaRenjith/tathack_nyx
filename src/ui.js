@@ -7,7 +7,7 @@ import { applyProfile, speaks, voiceDriven } from './profile.js';
 import { parseCommand } from './commands.js';
 import { createTapWatcher } from './adapt.js';
 import { icon } from './icons.js';
-import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen } from './speech.js';
+import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName } from './speech.js';
 
 const routes = {};
 const stack = [];
@@ -58,6 +58,7 @@ export function applySettings() {
   applyProfile(p);
   setSpeechLang(p.lang);
   setSpeechRate(p.speechRate);
+  setVoiceName(p.voiceName);
 }
 
 /**
@@ -93,8 +94,11 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
     pointerTimer = setInterval(placePointer, 400); // follows the button when the layout changes
   }
   on('[data-bar="back"]', 'click', back);
+  on('[data-bar="size"]', 'click', cycleTextSize);
   on('[data-bar="voice"]', 'click', () => window.dispatchEvent(new Event('sahaaya:voice')));
   on('.voice-bar', 'click', () => { stopSpeaking(); voiceTurn(); });
+  const hint = root().querySelector('.voice-hint');
+  if (hint) hint.textContent = voiceHelp();
   on('[data-nav]', 'click', (e) => {
     const target = e.currentTarget.dataset.nav;
     if (target === 'home') goHome(); else { stack.length = 0; replace(target); }
@@ -107,8 +111,14 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
 let pointerTimer = null;
 const HAND = `<svg viewBox="0 0 48 58" width="44" height="54" aria-hidden="true"><path d="M19 7a4.5 4.5 0 0 1 9 0v17l1.6-.4a4.2 4.2 0 0 1 4.9 2.5 4.2 4.2 0 0 1 5.6 2.8 4.2 4.2 0 0 1 5.4 4V41c0 8.5-6.5 15-15 15h-3.6c-5 0-8.6-2.4-11.2-6.6L5.6 39a4.3 4.3 0 0 1 6.9-5.2L19 40z" fill="#fff" stroke="#23302a" stroke-width="2.6" stroke-linejoin="round"/><path d="M28 30v8M34.4 31v7M40 33v6" stroke="#23302a" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 
+const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && !el.disabled && !el.closest('[hidden]'); };
+
 function placePointer() {
-  const el = root().querySelector('.point-here');
+  // Always point at the first next-step button that can be pressed right now.
+  const target = [...root().querySelectorAll('[data-next]')].find(visible);
+  root().querySelectorAll('.point-here').forEach((x) => { if (x !== target) x.classList.remove('point-here'); });
+  target?.classList.add('point-here');
+  const el = target;
   let hand = document.getElementById('pointer-hand');
   const r = el?.getBoundingClientRect();
   if (!el || !r.width || el.disabled || el.closest('[hidden]')) { if (hand) hand.hidden = true; return; }
@@ -126,20 +136,33 @@ function placePointer() {
 window.addEventListener('resize', () => placePointer());
 
 const micBtn = () => `<button class="icon-btn" data-bar="voice" aria-label="${esc(tr('voice_btn'))}">${icon('mic')}</button>`;
+export const textSizeBtn = () => `<button class="icon-btn text-size" data-bar="size" aria-label="${esc(tr('text_size'))}"><span aria-hidden="true">A<b>A</b></span></button>`;
 
+// Back is a labelled button, not just an arrow: many older users don't read icons.
 function backBar(title) {
   return `<header class="appbar">
-    <button class="icon-btn back" data-bar="back" aria-label="${esc(tr('back'))}">${icon('back')}</button>
+    <button class="back-btn" data-bar="back">${icon('back')}<span>${esc(tr('back'))}</span></button>
     <span class="bar-title">${esc(title)}</span>
-    ${micBtn()}
+    ${textSizeBtn()}${micBtn()}
   </header>`;
 }
 
 function brandBar() {
   return `<header class="appbar brandbar">
     <span class="logo" aria-hidden="true"></span><span class="brand">${esc(tr('app_name'))}</span>
-    <span class="spacer"></span>${micBtn()}
+    <span class="spacer"></span>${textSizeBtn()}${micBtn()}
   </header>`;
+}
+
+/** One tap cycles the text size: normal, large, extra large. */
+const SIZES = [1, 1.2, 1.45, 1.75];
+export function cycleTextSize() {
+  const now = P().textScale;
+  const next = SIZES.find((x) => x > now + 0.01) ?? SIZES[0];
+  store.updateProfile({ textScale: next, bigTargets: next >= 1.2 || P().bigTargets });
+  applySettings();
+  rerender();
+  announce(`${tr('text_size')}: ${Math.round(next * 100)}%`);
 }
 
 function navBar(active) {
@@ -148,7 +171,7 @@ function navBar(active) {
 }
 
 function voiceBar() {
-  return `<button class="voice-bar" aria-label="${esc(tr('vm_tap'))}"><span class="voice-orb">${icon('mic')}</span><span class="voice-text">${esc(tr('vm_tap'))}</span></button>`;
+  return `<button class="voice-bar" aria-label="${esc(tr('vm_tap'))}"><span class="voice-orb">${icon('mic')}</span><span class="voice-copy"><span class="voice-text">${esc(tr('vm_tap'))}</span><small class="voice-hint"></small></span></button>`;
 }
 
 function steps(n) {
@@ -190,7 +213,11 @@ export const screenId = () => screenGen;
  * @param {string} [o.help]  what to say when the user asks for help or isn't understood
  * @param {boolean} [o.own]  the screen runs its own spoken conversation; don't auto-listen
  */
-export function setVoice(o) { screenVoice = { ...screenVoice, ...o }; }
+export function setVoice(o) {
+  screenVoice = { ...screenVoice, ...o };
+  const hint = document.querySelector('.voice-bar .voice-hint'); // what you can say here, on screen too
+  if (hint) hint.textContent = voiceHelp();
+}
 export function onGlobalCommand(fn) { globalHandler = fn; }
 export const voiceHelp = () => screenVoice.help || tr(current?.name === 'home' ? 'vm_help_home' : 'vm_help');
 
@@ -222,7 +249,7 @@ export async function voiceTurn({ retries = 2 } = {}) {
     bar?.classList.add('is-listening');
     bar?.classList.remove('is-paused');
     setBarText(tr('listening'));
-    const heard = await listenAll({ lang: P().lang });
+    const heard = await listenAll({ lang: P().lang, onInterim: (t) => setBarText(`“${t}…”`) });
     bar?.classList.remove('is-listening');
     if (gen !== screenGen) return;
     setBarText(heard[0] ? `“${heard[0]}”` : tr('vm_tap'));

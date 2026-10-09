@@ -54,6 +54,8 @@ export const COMMANDS = {
   shops: ['my shops', 'shops', 'shop list', 'കടകൾ', 'കട', 'दुकान', 'दुकानें', 'கடை', 'கடைகள்'],
   voiceOn: ['voice control on', 'voice mode on', 'full voice', 'വോയ്സ് ഓൺ', 'आवाज़ नियंत्रण चालू', 'वॉइस चालू', 'குரல் கட்டுப்பாடு ஆன்'],
   voiceOff: ['voice control off', 'voice mode off', 'stop listening', 'വോയ്സ് ഓഫ്', 'वॉइस बंद', 'सुनना बंद', 'குரல் கட்டுப்பாடு ஆஃப்'],
+  cancel: ['cancel', 'cancel payment', 'stop payment', 'don\'t pay', 'dont pay', 'റദ്ദാക്ക', 'വേണ്ട', 'पेमेंट रद्द', 'रद्द', 'कैंसल', 'मत भेजो', 'ரத்து', 'கேன்சல்', 'வேண்டாம்'],
+  practice: ['practice', 'teach me', 'how to use', 'tutorial', 'പഠിക്ക', 'പരിശീലന', 'सिखाओ', 'अभ्यास', 'கற்றுக்கொடு', 'பயிற்சி'],
   stop: ['stop', 'quiet', 'silence', 'shut up', 'be quiet', 'നിർത്ത', 'മതി', 'മിണ്ടാതെ', 'रुको', 'बस', 'चुप', 'நிறுத்து', 'போதும்', 'அமைதி'],
   // used on some screens only
   again: ['scan again', 'try again', 'new qr', 'വീണ്ടും സ്കാൻ', 'വീണ്ടും സ്കാന', 'फिर से स्कैन', 'दोबारा स्कैन', 'மீண்டும் ஸ்கேன்'],

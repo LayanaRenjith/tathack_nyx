@@ -7,12 +7,13 @@ import { monthlyReport } from './report.js';
 import { findShopBySpeech, amountFrom } from './spoken.js';
 import { formatRupees } from './amount.js';
 import { normalisePhone } from './family.js';
-import { go, back, goHome, replace, rerender, tr, P, S, announce, applySettings, readScreen, startTapWatching, onGlobalCommand, handleHeard, voiceTurn, voiceHelp } from './ui.js';
+import { currentName, go, back, goHome, replace, rerender, tr, P, S, announce, applySettings, readScreen, startTapWatching, onGlobalCommand, handleHeard, voiceTurn, voiceHelp } from './ui.js';
 import './onboarding.js';
 import './home.js';
 import './pay.js';
 import './report-screen.js';
 import './approve.js';
+import './voice-practice.js';
 
 function adjust(patch) { store.updateProfile(patch); applySettings(); }
 const sayIt = (text) => (speaks(P()) ? speak(text) : announce(text, { force: true }));
@@ -60,6 +61,8 @@ onGlobalCommand(async (cmd, alts) => {
     case 'voiceOn': adjust({ voiceOnly: true, voice: true, handsFree: true, screenReader: false }); await sayIt(tr('vm_voice_on')); rerender(); break;
     case 'voiceOff': adjust({ voiceOnly: false }); await sayIt(tr('vm_voice_off')); rerender(); break;
     case 'stop': stopSpeaking(); break;
+    case 'cancel': await sayIt(tr('hf_cancelled')); goHome(); break;
+    case 'practice': go('voice-practice'); break;
     case 'payShop': {
       // "Pay Lakshmi Bakery two fifty": a saved shop, so its account is already known. No QR needed.
       const shop = findShopBySpeech(alts, s.savedShops);
@@ -109,6 +112,8 @@ window.addEventListener('popstate', () => { history.pushState(null, '', location
 
 applySettings();
 startTapWatching();
+// Phones load their voices late; refresh the voice list on the settings screen when they arrive.
+if (globalThis.speechSynthesis) speechSynthesis.onvoiceschanged = () => { if (currentName() === 'settings') rerender(); };
 const s = S();
 const after = s.profile.openScanner ? 'scan' : 'home';
 if (location.hash.includes('approve?')) replace('approve', location.hash); // a guardian opening an approval link

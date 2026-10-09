@@ -2,6 +2,7 @@
 // works without setting Sahaaya up there, and gives a 6-digit code to send back.
 
 import { parseRequestLink, guardianKey, approvalCode, pinLooksRight } from './guardian.js';
+import { sendAnswer } from './relay.js';
 import { formatRupees } from './amount.js';
 import { whatsappLink, normalisePhone } from './family.js';
 import { icon } from './icons.js';
@@ -40,14 +41,23 @@ route('approve', (hash) => {
         <label for="ap-pin">${esc(tx('ap_pin'))}</label>
         <input id="ap-pin" class="field code-field" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
         <p class="note warn-note" id="ap-err" role="alert" hidden>${esc(tx('ap_wrong_pin'))}</p>
-        <button class="btn big primary wide pay" id="ap-ok">${icon('check')}<span>${esc(tx('ap_get_code'))}</span></button>
+        <div class="row confirm-actions">
+          <button class="btn big wide ghost-danger" id="ap-no">${icon('close')}<span>${esc(tx('ap_decline'))}</span></button>
+          <button class="btn big primary wide pay" id="ap-ok">${icon('check')}<span>${esc(tx('ap_get_code'))}</span></button>
+        </div>
       </div>
       <div class="code-card" id="code-card" hidden>
+        <span class="done-badge">${icon('check')}</span>
+        <p class="done-title" id="done-title"></p>
         <p class="eyebrow">${esc(tx('ap_code_is'))}</p>
         <p class="big-code" id="code" aria-live="polite"></p>
-        <a class="btn big wide whatsapp" id="send" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tx('ap_send'))}</span></a>
+        <a class="btn wide whatsapp" id="send" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tx('ap_send'))}</span></a>
       </div>
-      ${req.phone ? `<a class="btn wide ghost-danger" href="${esc(whatsappLink(req.phone, tx('ap_decline_msg', { amount, shop: req.name || req.vpa })))}" target="_blank" rel="noopener">${icon('close')}<span>${esc(tx('ap_decline'))}</span></a>` : ''}
+      <div class="code-card declined" id="no-card" hidden>
+        <span class="done-badge">${icon('stop')}</span>
+        <p class="done-title">${esc(tx('ap_declined_sent', { user }))}</p>
+        ${req.phone ? `<a class="btn wide" href="tel:+${esc(normalisePhone(req.phone))}">${icon('call')}<span>${esc(tx('ap_call', { user }))}</span></a>` : ''}
+      </div>
     </section>`, { top: null, title: tx('ap_title') });
 
   on('#ap-ok', 'click', async () => {
@@ -61,6 +71,16 @@ route('approve', (hash) => {
     document.getElementById('code').textContent = `${code.slice(0, 3)} ${code.slice(3)}`;
     const msg = tx('ap_code_msg', { code });
     document.getElementById('send').href = req.phone ? whatsappLink(req.phone, msg) : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    speak(code.split('').join(' '), { lang });
+    // Straight to the elder's phone; the code on WhatsApp is the backup.
+    const sent = await sendAnswer(req.channel, { a: 'ok', code });
+    document.getElementById('done-title').textContent = tx(sent ? 'ap_sent' : 'ap_send_code', { user });
+    speak(sent ? tx('ap_sent', { user }) : code.split('').join(' '), { lang });
+  });
+
+  on('#ap-no', 'click', async () => {
+    document.getElementById('pin-card').hidden = true;
+    document.getElementById('no-card').hidden = false;
+    const sent = await sendAnswer(req.channel, { a: 'no' });
+    if (!sent && req.phone) window.open(whatsappLink(req.phone, tx('ap_decline_msg', { amount, shop: req.name || req.vpa })), '_blank');
   });
 });

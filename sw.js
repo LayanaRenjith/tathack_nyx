@@ -1,12 +1,12 @@
 // Offline support: cache the app shell so the safety check works with no network.
-const CACHE = 'sahaaya-v8';
+const CACHE = 'sahaaya-v9';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
   './src/app.js', './src/ui.js', './src/onboarding.js', './src/home.js', './src/pay.js',
   './src/upi.js', './src/safety.js', './src/match.js', './src/amount.js', './src/family.js', './src/auth.js',
   './src/i18n.js', './src/lang/en.js', './src/lang/ml.js', './src/lang/hi.js', './src/lang/ta.js',
   './src/speech.js', './src/keypad.js', './src/scanner.js', './src/store.js', './src/profile.js',
-  './src/adapt.js', './src/commands.js', './src/spoken.js', './src/report.js', './src/report-screen.js', './src/guardian.js', './src/approve.js', './src/icons.js', './src/demo-codes.js',
+  './src/adapt.js', './src/commands.js', './src/spoken.js', './src/report.js', './src/report-screen.js', './src/guardian.js', './src/approve.js', './src/relay.js', './src/voice-practice.js', './src/icons.js', './src/demo-codes.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -28,7 +28,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const sameSite = new URL(e.request.url).origin === self.location.origin;
-  if (!sameSite && !e.request.url.includes('jsQR')) return;
+  if (!sameSite && !/jsQR|opendyslexic|fonts\.(googleapis|gstatic)/i.test(e.request.url)) return;
   e.respondWith(
     fetch(e.request).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }

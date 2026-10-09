@@ -57,8 +57,9 @@ export function newRequestId() {
 }
 
 /** Link the guardian opens. Everything needed to show the request and make the code, nothing secret. */
-export function requestLink(base, { id, vpa, name, amount, user, phone, lang, reason }, guardian) {
+export function requestLink(base, { id, vpa, name, amount, user, phone, lang, reason, channel }, guardian) {
   const q = new URLSearchParams({ id, vpa, n: name || '', a: String(amount), u: user || '', s: guardian.salt, k: guardian.check || '', l: lang || 'en', r: reason || 'new' });
+  if (channel) q.set('c', channel);
   if (phone) q.set('p', phone);
   return `${base}#approve?${q.toString()}`;
 }
@@ -69,5 +70,5 @@ export function parseRequestLink(hash) {
   const q = new URLSearchParams(hash.slice(i + 'approve?'.length));
   const amount = Number(q.get('a'));
   if (!q.get('id') || !q.get('vpa') || !q.get('s') || !(amount > 0)) return null;
-  return { id: q.get('id'), vpa: q.get('vpa'), name: q.get('n') || '', amount, user: q.get('u') || '', salt: q.get('s'), check: q.get('k') || '', lang: q.get('l') || 'en', phone: q.get('p') || '', reason: q.get('r') || 'new' };
+  return { id: q.get('id'), vpa: q.get('vpa'), name: q.get('n') || '', amount, user: q.get('u') || '', salt: q.get('s'), check: q.get('k') || '', lang: q.get('l') || 'en', phone: q.get('p') || '', reason: q.get('r') || 'new', channel: q.get('c') || '' };
 }

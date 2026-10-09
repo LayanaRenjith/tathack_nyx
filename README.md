@@ -1,6 +1,6 @@
 # Sahaaya
 
-![Sahaaya: They looked after us all their lives. Now Sahaaya looks after their money.](icons/cover.png)
+![Sahaaya: check before you pay](icons/cover.png)
 
 **Check who you are paying, before you pay.** An accessibility companion for UPI payments, in Malayalam, English, Hindi and Tamil, for people who can't read the payment screen: blind and low-vision users, elderly people, people with hand tremors or colour blindness, and first-time smartphone users.
 
@@ -37,7 +37,7 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 | Can't see the screen | **Full voice control:** Sahaaya speaks every screen and then listens. No buttons needed. Tap anywhere (or double-tap) to talk |
 | Hard to see | Larger text, black-and-yellow contrast, everything spoken, vibration guides the camera, scanner opens on start, hands-free mode |
 | Uses TalkBack | Sahaaya stays quiet and lets TalkBack read everything; hands-free mode on |
-| Reading is hard | Easy-reading font, wider spacing, words highlighted as they are read aloud |
+| Reading is hard | **OpenDyslexic** font (or Atkinson Hyperlegible), wider spacing and line height, words highlighted as they are read aloud. Malayalam, Hindi and Tamil keep their own script font with the extra spacing |
 | Hard to tell colours apart | Blue / orange / magenta palette; meaning always shown with icons and words too |
 | Hands shake | Big buttons, keypad that ignores double taps and brushes, hold-to-pay |
 | Hard to hear | Flashing and vibrating warnings; no speech needed |
@@ -45,18 +45,27 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 
 **Full voice control (for blind users):** setup can be done entirely by voice ("Set up by voice": language, name, a family member's number). After that every screen is spoken and Sahaaya listens for what to do next: "pay", "report", "how much did I spend", "call my son", "read", "help", "back". A payment is: "pay" → scan (beeps rise in pitch as the QR comes into view, with spoken tips) → hear the result → say the amount → "right?" → final check → the UPI app opens. On a swapped QR it says "scan again, tell family, or continue".
 
+**Voice that's easier to live with:** long sentences are spoken one at a time (some Android voices cut off long speech), the most natural installed voice is picked and can be changed in Easy settings, what you say appears on screen as you speak, and "what you can say here" is always shown in the voice bar. "Cancel" works anywhere. **Practise voice** walks through pay, an amount, yes and help without paying anything.
+
 **Understanding speech in four languages, offline:** amounts in digits of any script and in words, including Indian forms: "two fifty", "dhai sau", "साढ़े तीन सौ", "ഇരുന്നൂറ്റി അമ്പത്", "இருநூற்று ஐம்பது". Commands and yes/no match on word stems (Malayalam and Tamil word endings change), allow small English typos, include the English words people mix in ("scan", "report"), and are checked against all of the recogniser's guesses. Screen-specific words are tried before app-wide ones. Rising and falling beeps say when Sahaaya is listening, a short buzz confirms it understood, and what it heard is shown on screen.
 
 **Pay a saved shop by name, no QR needed:** "Lakshmi Bakery 250" (or ലക്ഷ്മി ബേക്കറി 250, लक्ष्मी बेकरी 250, லட்சுமி பேக்கரி 250) goes straight to the check. Names are matched across scripts using a consonant skeleton, and the payment goes to the account saved for that shop. Also: "who am I paying", "what is my limit", and shake the phone to talk.
 
 **Learns as you use it:** if taps keep missing buttons or repeating, Sahaaya offers bigger buttons. Voice commands work on every screen.
 
+## No helper? Sahaaya still protects
+
+For people with no family member to add:
+- **Quick safety check** before paying a new shop, read aloud and answered by voice or with big Yes/No buttons: "Are you at this shop, paying for something you bought?", "Did someone call or message you asking you to pay?", "This QR pays Chhotu Tiwari. Is that the shop in front of you?" A wrong answer stops the payment and shows a one-tap call to **1930**, India's cyber-fraud helpline.
+- **Time to think:** a big payment to a new shop, or one over their own limit, pauses for 30 seconds with a spoken reminder.
+- All the other checks (swapped QR, receive-money trick, extra zero) work the same.
+
 ## Family and limits
 
 **New shops need the guardian's OK.** At setup the trusted person picks a 4-digit Guardian PIN (only a salted hash is stored). When the user scans a QR that isn't one of their saved shops, payment is held:
-1. "Ask Ravi to check" sends Ravi a WhatsApp link with the shop, account and amount.
-2. The link opens Sahaaya on Ravi's phone (no setup needed there). He checks, or calls, enters his Guardian PIN and gets a 6-digit approval code to send back.
-3. The user types or says the code. It only works for this request, this account and this amount, so it can't be reused, and the user never learns the PIN. The shop is then saved for next time.
+1. "Ask Ravi to check" sends Ravi a WhatsApp alert with the shop, account and amount.
+2. The link opens Sahaaya on Ravi's phone (no setup needed there). He checks, or calls, enters his Guardian PIN and taps **Accept** or **Don't pay**.
+3. The user's phone unlocks by itself the moment Ravi accepts, or shows "Ravi said: don't pay". The answer travels through ntfy.sh, a free open-source relay, on a random one-time channel. Only the 6-digit approval code goes through it, and that code is checked against the Guardian PIN and only works for this request, this account and this amount. If the relay can't be reached, Ravi sends the code on WhatsApp and the user types or says it. The user never learns the PIN, and the shop is saved for next time.
 If Ravi is sitting next to them, he can type his PIN on the user's phone instead. Payments over the limit use the same approval.
 
 
@@ -107,6 +116,8 @@ src/report.js            Monthly totals, per-shop breakdown, six-month trend
 src/report-screen.js     Report screen and WhatsApp sharing
 src/guardian.js          Guardian PIN, approval codes tied to account and amount, request links
 src/approve.js           The guardian's approval page (opens from the WhatsApp link)
+src/relay.js             Instant Accept / Don't pay answers through ntfy.sh (code still verified on the phone)
+src/voice-practice.js    Practise voice commands without paying
 src/spoken.js            Amounts, yes/no and phrase matching in Malayalam, English, Hindi, Tamil
 src/commands.js          Voice commands in four languages
 src/auth.js              Fingerprint/face (WebAuthn) and 4-digit code lock

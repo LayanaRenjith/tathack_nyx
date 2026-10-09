@@ -8,8 +8,8 @@ import { PAY_APPS, buildUpiLink, appLink } from './upi.js';
 import { verifyBiometric, checkCode } from './auth.js';
 import { normalisePhone } from './family.js';
 import { icon } from './icons.js';
-import { BUZZ } from './speech.js';
-import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice } from './ui.js';
+import { BUZZ, voicesFor, speak } from './speech.js';
+import { route, go, replace, goHome, render, on, esc, tr, P, S, announce, applySettings, rerender, alertUser, setVoice, textSizeBtn } from './ui.js';
 import { pendingReport } from './report.js';
 import { voiceDriven } from './profile.js';
 import { codePad, codePadHtml, settingsControls, wireSettingsControls, trustedForm, saveTrustedForm, limitsForm, saveLimitsForm, guardianForm, wireGuardianForm, saveGuardianForm } from './onboarding.js';
@@ -75,14 +75,17 @@ route('home', () => {
       <div class="greeting">
         <span class="sun ${morning ? '' : 'moon'}">${icon(morning ? 'sun' : 'moon')}</span>
         <div class="grow"><p class="greet-small">${esc(tr(greetingKey()))},</p><h1>${esc(s.user.name || '')}</h1><p class="greet-date">${esc(dateText)}</p></div>
-        <button class="icon-btn" data-bar="voice" aria-label="${esc(tr('voice_btn'))}">${icon('mic')}</button>
         <button class="avatar" id="me" aria-label="${esc(tr('profile'))}">${esc(initials(s.user.name))}</button>
       </div>
-      <button class="hero-card" id="pay" data-next>
-        <span class="hero-badge">${icon('scan')}</span>
-        <span class="hero-text"><strong>${esc(tr('tile_pay'))}</strong><small>${esc(tr('tile_pay_sub'))}</small></span>
-        <span class="hero-go">${icon('chevron')}</span>
-      </button>
+      <div class="quick-row">${textSizeBtn()}<button class="icon-btn" data-bar="voice" aria-label="${esc(tr('voice_btn'))}">${icon('mic')}</button></div>
+      <div class="scan-stage">
+        <button class="scan-orb" id="pay" data-next aria-describedby="pay-sub">
+          <span class="orb-ring" aria-hidden="true"></span>
+          <span class="orb-icon">${icon('scan')}</span>
+          <strong>${esc(tr('tile_pay'))}</strong>
+        </button>
+        <p class="scan-sub" id="pay-sub">${icon('shield')}<span>${esc(tr('tile_pay_sub'))}</span></p>
+      </div>
       ${pending ? `<button class="notice tone-pink" id="pending">${icon('chart')}<span class="grow"><strong>${esc(tr('report_ready', { month: new Date(pending.year, pending.month, 1).toLocaleString(P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`, { month: 'long' }) }))}</strong><small>${esc(person ? tr('report_send', { name: person.name }) : formatRupees(pending.total))}</small></span>${icon('chevron')}</button>` : ''}
       <div class="tiles">
         ${tile('shops', 'green', 'store', tr('tile_shops'), tr('tile_shops_sub', { n: s.savedShops.length }))}
@@ -224,6 +227,7 @@ route('profile', () => {
         ${row('r-family', 'purple', 'family', tr('tile_family'), s.trusted[0]?.name || '')}
         ${row('r-shops', 'teal', 'store', tr('tile_shops'), String(s.savedShops.length))}
         ${row('r-report', 'pink', 'chart', tr('report_title'), '')}
+        ${row('r-practice', 'green', 'mic', tr('practice_title'), '')}
         ${row('r-access', 'amber', 'sliders', tr('tile_settings'), '')}
       </div>
       <details class="card">
@@ -233,6 +237,7 @@ route('profile', () => {
         <input id="vpa" class="field" autocomplete="off" placeholder="name@okaxis">
         <button class="btn wide" id="test">${esc(tr('test_go', { app: appLabel }))}</button>
       </details>
+      <a class="help-card" href="tel:1930">${icon('call')}<span class="grow"><strong>${esc(tr('call_1930'))}</strong><small>${esc(tr('help_1930'))}</small></span></a>
       <div class="stack tight">
         ${s.lock.type !== 'none' ? `<button class="btn wide" id="lock-now">${icon('lock')}<span>${esc(tr('lock_now'))}</span></button>` : ''}
         <button class="btn wide" id="samples">${esc(tr('sample_shops'))}</button>
@@ -247,6 +252,7 @@ route('profile', () => {
   on('#r-shops', 'click', () => go('shops'));
   on('#r-access', 'click', () => go('settings'));
   on('#r-report', 'click', () => go('report'));
+  on('#r-practice', 'click', () => go('voice-practice'));
   on('#r-voice', 'click', () => { store.updateProfile({ voiceOnly: !p.voiceOnly, voice: true, handsFree: true, screenReader: false }); applySettings(); rerender(); });
   on('#test', 'click', () => {
     const vpa = document.getElementById('vpa').value.trim();
@@ -267,12 +273,35 @@ route('profile', () => {
 // ---------- Accessibility settings ----------
 route('settings', () => {
   const p = P();
+  const voices = voicesFor(p.lang);
+  const fonts = [['standard', 'font_standard'], ['easy', 'font_easy'], ['dyslexic', 'font_dyslexic']];
   render(`
     <section class="screen">
       <h1>${esc(tr('tile_settings'))}</h1>
+      <div class="card stack tight">
+        <h2 class="card-title">${icon('book')} ${esc(tr('font_title'))}</h2>
+        <div class="font-grid" role="radiogroup" aria-label="${esc(tr('font_title'))}">
+          ${fonts.map(([k, label]) => `<button class="font-card font-${k} ${(p.font || 'standard') === k ? 'is-on' : ''}" role="radio" aria-checked="${(p.font || 'standard') === k}" data-font="${k}"><span class="font-sample">Aa ${esc(tr('font_sample'))}</span><small>${esc(tr(label))}</small></button>`).join('')}
+        </div>
+        <p class="hint">${esc(tr('font_hint'))}</p>
+      </div>
+      <div class="card stack tight">
+        <h2 class="card-title">${icon('speaker')} ${esc(tr('voice_title'))}</h2>
+        ${voices.length ? `<label for="voice-pick">${esc(tr('voice_pick'))}</label>
+        <select id="voice-pick" class="field">
+          <option value="">${esc(tr('voice_best'))}</option>
+          ${voices.map((v) => `<option value="${esc(v.name)}" ${p.voiceName === v.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}
+        </select>` : `<p class="note warn-note">${icon('info')}<span>${esc(tr('voice_missing'))}</span></p>`}
+        <div class="row"><button class="btn wide" id="voice-test">${icon('speaker')}<span>${esc(tr('voice_test'))}</span></button>
+        <button class="btn wide" id="voice-practice">${icon('mic')}<span>${esc(tr('practice_title'))}</span></button></div>
+      </div>
       ${settingsControls(p)}
       <button class="btn wide" id="redo">${esc(tr('redo_setup'))}</button>
     </section>`, { title: tr('tile_settings') });
   wireSettingsControls(p, (next) => { store.updateProfile(next); applySettings(); rerender(); });
+  on('[data-font]', 'click', (e) => { const font = e.currentTarget.dataset.font; store.updateProfile({ font, dyslexiaFont: font !== 'standard' }); applySettings(); rerender(); });
+  on('#voice-pick', 'change', (e) => { store.updateProfile({ voiceName: e.currentTarget.value }); applySettings(); speak(tr('voice_sample', { name: S().user.name || '' })); });
+  on('#voice-test', 'click', () => speak(tr('voice_sample', { name: S().user.name || '' })));
+  on('#voice-practice', 'click', () => go('voice-practice'));
   on('#redo', 'click', () => go('needs'));
 });

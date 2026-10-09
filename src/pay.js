@@ -14,6 +14,8 @@ import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, listenAll, canListen, BUZZ, vibrate, speak } from './speech.js';
 import { newRequestId, checkApproval, checkGuardianPin, requestLink } from './guardian.js';
+import { newChannel, listenForAnswer } from './relay.js';
+import { normalisePhone } from './family.js';
 import { parseCommand } from './commands.js';
 import { DEMO_QRS } from './demo-codes.js';
 import { icon } from './icons.js';
@@ -118,6 +120,13 @@ route('result', (qr) => {
   else head = { title: tr('r_new'), sub: qr.payeeName ? tr('r_new_sub_name', { name: qr.payeeName }) : tr('r_new_sub_noname') };
   const extra = check.findings.filter((f) => ['receive_money_trick', 'not_a_payment_qr'].includes(f.code)).map((f) => tr(`f_${f.code}`));
   const danger = check.level === LEVEL.DANGER;
+  // No helper to ask: a short safety check stands in for them on a new shop.
+  const solo = check.status === STATUS.NEW && !person && !danger;
+  const soloQs = [
+    { key: 'solo_q_here', want: 'yes' },
+    { key: 'solo_q_call', want: 'no' },
+    ...(qr.payeeName ? [{ key: 'solo_q_name', want: 'yes', vars: { name: qr.payeeName } }] : []),
+  ];
   const swapMsg = check.status === STATUS.DIFFERENT && person
     ? tr('family_msg_swap', { user: s.user.name, shop: check.shopName, vpa: qr.payeeVpa }) : null;
 
@@ -141,7 +150,21 @@ route('result', (qr) => {
           ${swapMsg ? `<a class="btn wide whatsapp" href="${esc(whatsappLink(person.phone, swapMsg))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('alert_family_swap', { name: person.name }))}</span></a>` : ''}
           <button class="btn ghost wide" id="anyway">${esc(tr('continue_anyway'))}</button>
         </div>` : ''}
-      <div id="pay-area" ${danger ? 'hidden' : ''}>
+      ${danger ? `<a class="btn wide report-fraud" href="tel:1930">${icon('call')}<span>${esc(tr('call_1930'))}</span></a>` : ''}
+      ${solo ? `
+        <div class="solo-card" id="solo">
+          <p class="solo-title">${icon('shield')}<span>${esc(tr('solo_title'))}</span></p>
+          <p class="solo-q readable" id="solo-q"></p>
+          <div class="row"><button class="btn big wide" data-solo="no">${icon('close')}<span>${esc(tr('no'))}</span></button><button class="btn big wide primary" data-solo="yes" data-next>${icon('check')}<span>${esc(tr('yes'))}</span></button></div>
+          <p class="solo-step" id="solo-step"></p>
+        </div>
+        <div class="solo-stop" id="solo-stop" role="alert" hidden>
+          <p class="result-title">${esc(tr('solo_stop'))}</p>
+          <p>${esc(tr('solo_stop_sub'))}</p>
+          <a class="btn big wide primary" href="tel:1930">${icon('call')}<span>${esc(tr('call_1930'))}</span></a>
+          <button class="btn wide" id="solo-again">${icon('scan')}<span>${esc(tr('scan_again'))}</span></button>
+        </div>` : ''}
+      <div id="pay-area" ${danger || solo ? 'hidden' : ''}>
         <div class="amount-box">
           <span class="label">${esc(tr('amount_q'))}</span>
           <output id="amount" class="amount" aria-live="polite">₹0</output>
@@ -159,7 +182,8 @@ route('result', (qr) => {
   alertUser(BUZZ_FOR[check.level]);
   const spoken = [head.title, head.sub, ...extra];
   const voiceFlow = (P().handsFree || voiceDriven(P())) && canListen;
-  if (!danger) spoken.push(usual ? tr('usual', { amount: money(usual) }) : '', voiceFlow ? '' : tr('amount_q'));
+  if (solo && !voiceFlow) spoken.push(tr('solo_title'), tr(soloQs[0].key, soloQs[0].vars));
+  else if (!danger) spoken.push(usual ? tr('usual', { amount: money(usual) }) : '', voiceFlow ? '' : tr('amount_q'));
   const intro = announce(spoken.filter(Boolean).join('. '), { force: danger });
 
   on('#again', 'click', () => go('scan'));
@@ -169,6 +193,41 @@ route('result', (qr) => {
     document.getElementById('pay-area').hidden = false;
     lockFor(pauseSeconds(LEVEL.DANGER));
   });
+
+  // ----- Safety check for people with no helper -----
+  let soloStep = 0;
+  const soloAsk = () => {
+    const q = soloQs[soloStep];
+    document.getElementById('solo-q').textContent = tr(q.key, q.vars);
+    document.getElementById('solo-step').textContent = `${soloStep + 1} / ${soloQs.length}`;
+    return tr(q.key, q.vars);
+  };
+  const soloAnswer = (ans, { quiet = false } = {}) => {
+    if (!solo || soloStep >= soloQs.length) return 'done';
+    if (ans !== soloQs[soloStep].want) {
+      document.getElementById('solo').hidden = true;
+      document.getElementById('solo-stop').hidden = false;
+      alertUser(BUZZ.danger);
+      announce(`${tr('solo_stop')} ${tr('solo_stop_sub')}`, { force: true });
+      return 'stop';
+    }
+    soloStep += 1;
+    vibrate(BUZZ.tick);
+    if (soloStep >= soloQs.length) {
+      document.getElementById('solo').hidden = true;
+      document.getElementById('pay-area').hidden = false;
+      if (!quiet) announce(tr('solo_ok'));
+      return 'done';
+    }
+    const next = soloAsk();
+    if (!quiet) announce(next);
+    return 'next';
+  };
+  if (solo) {
+    soloAsk();
+    on('[data-solo]', 'click', (e) => soloAnswer(e.currentTarget.dataset.solo));
+    on('#solo-again', 'click', () => go('scan'));
+  }
 
   // ----- amount, limits, pay button -----
   const out = document.getElementById('amount');
@@ -181,6 +240,7 @@ route('result', (qr) => {
   const hold = P().tremorSafe;
   let amount = 0;
   let amountLevel = LEVEL.OK;
+  let soloPaused = false;
   let lockedUntil = 0;
   let timer = null;
   let limit = null;
@@ -190,12 +250,16 @@ route('result', (qr) => {
   const guardian = s.guardian?.key ? s.guardian : null;
   const needNew = Boolean(check.status === STATUS.NEW && person && guardian && s.limits.newShops !== false);
   const reqId = newRequestId();
+  const channel = newChannel();
+  const askedAt = Date.now();
   let approved = false;
+  let declined = false;
+  let stopListening = () => {};
   const reason = () => (needNew ? 'new' : limit ? 'limit' : null);
   const request = () => ({ id: reqId, vpa: qr.payeeVpa, amount });
 
   const payLabel = () => (hold ? tr('hold_to_pay') : tr('tap_to_pay'));
-  const needsOk = () => Boolean(person && reason() && !approved && (guardian ? true : !asked));
+  const needsOk = () => Boolean(person && reason() && (!approved || declined) && (guardian ? true : !asked));
   const refreshButton = () => {
     const left = Math.ceil((lockedUntil - Date.now()) / 1000);
     btn.disabled = left > 0 || !amount || needsOk();
@@ -208,7 +272,7 @@ route('result', (qr) => {
     timer = setInterval(() => { refreshButton(); if (Date.now() >= lockedUntil) clearInterval(timer); }, 250);
     refreshButton();
   }
-  setCleanup(() => clearInterval(timer));
+  setCleanup(() => { clearInterval(timer); stopListening(); });
 
   const approveNow = async (how) => {
     approved = true;
@@ -236,7 +300,7 @@ route('result', (qr) => {
   };
   const askMessage = () => {
     const base = `${location.origin}${location.pathname}`;
-    const link = requestLink(base, { ...request(), name: check.shopName, user: s.user.name, phone: s.user.phone, lang: P().lang, reason: reason() }, guardian);
+    const link = requestLink(base, { ...request(), name: check.shopName, user: s.user.name, phone: s.user.phone, lang: P().lang, reason: reason(), channel }, guardian);
     return tr('g_msg', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa, reason: tr(needNew ? 'g_reason_new' : 'g_reason_limit'), link });
   };
 
@@ -266,13 +330,16 @@ route('result', (qr) => {
     familyBox.innerHTML = `
       <p class="family-text">${icon('shield')}<span>${esc(text)}</span></p>
       ${amount ? `
-        <a class="btn wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, askMessage()))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('g_ask', { name: person.name }))}</span></a>
+        <a class="btn big wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, askMessage()))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('g_ask', { name: person.name }))}</span></a>
+        <p class="waiting" aria-live="polite"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>${esc(tr('g_waiting', { name: person.name }))}</p>
+        <details class="here"><summary>${icon('info')} ${esc(tr('g_have_code', { name: person.name }))}</summary>
         <label for="g-code">${esc(tr('g_enter_code', { name: person.name }))}</label>
         <div class="code-row">
           <input id="g-code" class="field code-field" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${esc(tr('g_code_ph'))}">
           <button class="btn primary" id="g-check">${esc(tr('g_check'))}</button>
         </div>
         ${canListen ? `<button class="btn small wide" id="g-say">${icon('mic')}<span>${esc(tr('g_say_code'))}</span></button>` : ''}
+        </details>
         <p class="note warn-note" id="g-err" role="alert" hidden></p>
         <details class="here">
           <summary>${icon('family')} ${esc(tr('g_here', { name: person.name }))}</summary>
@@ -282,6 +349,20 @@ route('result', (qr) => {
             <button class="btn" id="g-pin-ok">${esc(tr('g_check'))}</button>
           </div>
         </details>` : `<p class="hint">${esc(tr('g_amount_first'))}</p>`}`;
+    if (declined) {
+      familyBox.className = 'family-box declined';
+      familyBox.innerHTML = `<p class="family-text">${icon('stop')}<span>${esc(tr('g_declined', { name: person.name }))}</span></p>
+        <a class="btn wide" href="tel:+${esc(normalisePhone(person.phone))}">${icon('call')}<span>${esc(tr('tile_call', { name: person.name }))}</span></a>`;
+      return;
+    }
+    // Instant answer: the helper's Accept unlocks this screen by itself (the WhatsApp code is the backup).
+    if (amount) {
+      stopListening();
+      stopListening = listenForAnswer(channel, askedAt, async (msg) => {
+        if (msg.a === 'no') { declined = true; alertUser(BUZZ.danger); showFamily(); refreshButton(); announce(tr('g_declined', { name: person.name }), { force: true }); return; }
+        if (msg.code && !approved) { const box = familyBox.querySelector('#g-code'); if (box) box.value = msg.code; await tryCode(msg.code); if (approved && voiceFlow && gen === screenId()) voiceAmount(); }
+      });
+    }
     const codeEl = familyBox.querySelector('#g-code');
     familyBox.querySelector('#g-check')?.addEventListener('click', () => tryCode(codeEl.value));
     codeEl?.addEventListener('input', () => { if (codeEl.value.replace(/\D/g, '').length === 6) tryCode(codeEl.value); });
@@ -310,6 +391,14 @@ route('result', (qr) => {
       lockFor(pauseSeconds(LEVEL.DANGER));
     }
     amountLevel = a.level;
+    // No helper: a big or over-limit payment gets a 30-second pause to think, with a spoken reminder.
+    if (!person && amount && !soloPaused && (overLimit(amount, s.limits, s.history) || (check.status === STATUS.NEW && amount > (s.limits.soloNew || 1000)))) {
+      soloPaused = true;
+      warn.innerHTML = `${icon('info')}<span>${esc(tr('solo_wait'))}</span>`;
+      warn.className = 'amount-warn caution';
+      announce(tr('solo_wait'), { force: true });
+      lockFor(30);
+    }
     asked = false;
     approved = false; // an approval is for one amount only
     showFamily();
@@ -354,6 +443,11 @@ route('result', (qr) => {
   const gen = screenId();
   async function voiceAmount() {
     if (!canListen || gen !== screenId()) return;
+    while (solo && soloStep < soloQs.length) {
+      const heard = await ask(soloAsk(), (h) => Boolean(yesNo(h)), gen);
+      if (!heard || !heard.length) return;
+      if (soloAnswer(yesNo(heard), { quiet: true }) === 'stop') return;
+    }
     if (!amount) {
       const heard = await ask(tr('hf_amount'), (h) => Boolean(amountFrom(h)), gen);
       if (heard === null) return;
@@ -405,7 +499,7 @@ route('result', (qr) => {
     waitingForCode = false;
     setTimeout(() => voiceAmount(), 600);
   };
-  if (voiceFlow) { document.addEventListener('visibilitychange', onBack); setCleanup(() => { clearInterval(timer); document.removeEventListener('visibilitychange', onBack); }); }
+  if (voiceFlow) { document.addEventListener('visibilitychange', onBack); setCleanup(() => { clearInterval(timer); stopListening(); document.removeEventListener('visibilitychange', onBack); }); }
 
   if (danger && voiceDriven(P())) {
     setVoice({

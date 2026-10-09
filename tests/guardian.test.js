@@ -33,10 +33,11 @@ test('wrong guardian PIN gives a wrong code, and is caught early on the guardian
 
 test('request link round-trips and carries nothing secret', async () => {
   const g = await makeGuardian('4821');
-  const link = requestLink('https://sahaaya.app/', { ...req, name: 'Green Tea Stall', user: 'Amma', phone: '9895011111', lang: 'ml', reason: 'new' }, g);
+  const link = requestLink('https://sahaaya.app/', { ...req, name: 'Green Tea Stall', user: 'Amma', phone: '9895011111', lang: 'ml', reason: 'new', channel: 'sahaaya_abc123' }, g);
   assert.equal(link.includes(g.key), false);
   const r = parseRequestLink(new URL(link).hash);
   assert.deepEqual({ id: r.id, vpa: r.vpa, amount: r.amount, name: r.name, lang: r.lang }, { id: 'ab12cd', vpa: 'greentea@ybl', amount: 250, name: 'Green Tea Stall', lang: 'ml' });
+  assert.equal(r.channel, 'sahaaya_abc123');
   assert.equal(parseRequestLink('#approve?id=x'), null);
 });
 

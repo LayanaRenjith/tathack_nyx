@@ -5,6 +5,10 @@
    Light theme only (easier for older eyes); high contrast stays available as a setting.
    The profile reshapes it through --scale and data attributes on <html>. */
 
+/* OpenDyslexic (SIL Open Font License), loaded only when chosen and cached for offline use. */
+@font-face { font-family: "OpenDyslexic"; src: url("https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@0.91.12/compiled/OpenDyslexic-Regular.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: "OpenDyslexic"; src: url("https://cdn.jsdelivr.net/gh/antijingoist/opendyslexic@0.91.12/compiled/OpenDyslexic-Bold.woff2") format("woff2"); font-weight: 700 900; font-display: swap; }
+
 :root {
   --scale: 1;
   --fs: calc(19px * var(--scale));
@@ -55,7 +59,9 @@
 :root[data-colour-safe] { --ok: #0a5fbd; --ok-bg: #e1edfb; --caution: #c25a00; --caution-bg: #ffead4; --danger: #a3005e; --danger-bg: #fbe1ef; }
 
 :root[data-big] { --tap: 76px; --gap: 20px; }
-:root[data-dyslexia] { --font: "Atkinson Hyperlegible", "Baloo 2", Verdana, sans-serif; }
+:root[data-font="easy"], :root[data-font="easy"] * { --font: "Atkinson Hyperlegible", "Baloo 2", "Baloo Chettan 2", "Baloo Thambi 2", Verdana, sans-serif; }
+:root[data-font="dyslexic"], :root[data-font="dyslexic"] * { --font: "OpenDyslexic", "Baloo Chettan 2", "Baloo Thambi 2", "Baloo 2", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Devanagari", Verdana, sans-serif; }
+:root[data-font="dyslexic"] body { line-height: 1.8; }
 :root[data-dyslexia] body { letter-spacing: 0.035em; word-spacing: 0.14em; line-height: 1.75; }
 
 * { box-sizing: border-box; }
@@ -443,3 +449,76 @@ details.here[open] { gap: 8px; }
 .code-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; border-radius: var(--r-xl); background: var(--tint-green); border: 3px solid var(--c-green); text-align: center; }
 .big-code { font-size: 2.8em; font-weight: 800; letter-spacing: .12em; color: var(--brand-dark); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .code-field::placeholder { letter-spacing: normal; font-weight: 600; font-size: .7em; }
+
+/* ---------- v9: elder-first polish ---------- */
+.back-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 52px; padding: 6px 16px 6px 10px; border: 0; border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 800; cursor: pointer; box-shadow: 0 0 0 1.5px var(--line) inset; flex: none; }
+.back-btn .ic { width: 26px; height: 26px; }
+.text-size span { font-weight: 800; font-size: 15px; letter-spacing: -1px; }
+.text-size b { font-size: 21px; }
+.quick-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: -8px; }
+.greeting .avatar { margin-left: auto; }
+.scan-stage { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px 0 4px; }
+.scan-orb { position: relative; width: min(64vw, 236px); aspect-ratio: 1; border-radius: 50%; border: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: radial-gradient(circle at 30% 25%, #5aa880, #2f6a4e 70%); color: #fff; font: inherit; cursor: pointer; box-shadow: 0 18px 40px rgba(47, 106, 78, .35), inset 0 -6px 18px rgba(0,0,0,.15); }
+.scan-orb strong { font-size: 1.3em; line-height: 1.1; text-align: center; padding: 0 16px; }
+.orb-icon { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); }
+.orb-icon .ic { width: 44px; height: 44px; }
+.orb-ring { position: absolute; inset: -12px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); animation: ring 2.4s ease-out infinite; pointer-events: none; }
+@keyframes ring { 0% { transform: scale(.94); opacity: 1; } 100% { transform: scale(1.12); opacity: 0; } }
+.scan-sub { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--brand-dark); }
+.scan-sub .ic { width: 22px; height: 22px; }
+:root[data-contrast] .scan-orb { background: #000; border: 4px solid var(--c-green); color: var(--c-green); }
+.scan-orb.point-here { outline-offset: 10px; border-radius: 50%; }
+
+.welcome-hero { height: 300px; }
+.cover-copy .brand-lockup { justify-content: center; }
+.cover-sub { font-size: 1.15em; font-weight: 700; color: var(--ink); }
+.promise { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.promise li { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--r-lg); background: var(--tone-bg); font-weight: 700; }
+.promise li .ic { width: 30px; height: 30px; color: var(--tone); flex: none; }
+.tone-red-soft { --tone: var(--c-red); --tone-bg: var(--tint-red); }
+
+.font-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.font-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 6px; border-radius: var(--r-md); border: 2px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-family: inherit; }
+.font-card.is-on { border-color: var(--brand); background: var(--tint-green); }
+.font-card small { font-weight: 700; color: var(--muted); font-size: .78em; text-align: center; }
+.font-sample { font-size: 1.05em; font-weight: 700; }
+.font-standard .font-sample { font-family: "Baloo 2", sans-serif; }
+.font-easy .font-sample { font-family: "Atkinson Hyperlegible", sans-serif; }
+.font-dyslexic .font-sample { font-family: "OpenDyslexic", sans-serif; font-size: .95em; }
+select.field { appearance: auto; }
+
+.solo-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--r-xl); background: var(--surface); border: 3px solid var(--c-amber); box-shadow: var(--lift); }
+.solo-title { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--c-amber); }
+.solo-q { font-size: 1.25em; font-weight: 800; line-height: 1.3; }
+.solo-step { text-align: center; color: var(--muted); font-weight: 700; }
+.solo-stop { display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: var(--r-xl); background: var(--danger-bg); border: 3px solid var(--danger); }
+.solo-stop .result-title { color: var(--danger); }
+.report-fraud { border-color: var(--c-red); color: var(--c-red); }
+.waiting { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--c-purple); }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c-purple); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+.family-box.declined { background: var(--danger-bg); border-color: var(--danger); }
+.family-box.declined .ic { color: var(--danger); }
+.help-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--tint-red); color: var(--ink); text-decoration: none; border: 1.5px solid color-mix(in srgb, var(--c-red) 25%, transparent); }
+.help-card > .ic { color: var(--c-red); width: 30px; height: 30px; }
+.help-card strong { display: block; }
+.help-card small { color: var(--muted); font-weight: 600; }
+.done-badge { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--c-green); color: #fff; }
+.done-badge .ic { width: 34px; height: 34px; }
+.done-title { font-size: 1.2em; font-weight: 800; }
+.code-card.declined { background: var(--danger-bg); border-color: var(--danger); }
+.code-card.declined .done-badge { background: var(--danger); }
+.voice-copy { display: flex; flex-direction: column; text-align: left; gap: 2px; }
+.voice-hint { font-weight: 600; font-size: .7em; opacity: .9; }
+.practice-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.practice-steps li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface); border: 2px solid var(--line); font-weight: 700; }
+.practice-steps .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--tint-green); color: var(--brand-dark); font-weight: 800; flex: none; }
+.practice-steps .tick { color: transparent; }
+.practice-steps li.now { border-color: var(--brand); background: var(--tint-green); }
+.practice-steps li.done .tick { color: var(--c-green); }
+.practice-steps li.skipped { opacity: .6; }
+#orb.is-listening { animation: orb 1.1s ease-in-out infinite; background: var(--brand); color: #fff; }
+/* Leave room under the pointed-at button so the hand never covers the next line. */
+:root[data-simple] .point-here { margin-bottom: 44px; }
