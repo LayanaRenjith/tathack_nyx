@@ -163,3 +163,46 @@ test('no language claims a payment succeeded; the hand-off says the UPI app show
   }
   assert.equal(Object.values(en).some((v) => /payment (was )?successful|payment complete/i.test(v)), false);
 });
+
+// ---------- Practice mode ----------
+import * as store from '../src/store.js';
+import { practiceSeed, linkKind, PRACTICE_PIN } from '../src/practice-core.js';
+import { checkGuardianPin } from '../src/guardian.js';
+
+test('practice runs on a separate copy: real shops, helper and settings are untouched', async () => {
+  store.reset();
+  store.update({ setupDone: true, user: { name: 'Amma', phone: '9847012345', helper: false } });
+  store.saveShop({ name: 'Real Shop', vpa: 'real@okaxis' });
+  store.updateProfile({ lang: 'ml', textScale: 1.45 });
+  const realBefore = JSON.stringify(store.get());
+
+  store.enterPractice(await practiceSeed(store.get()));
+  assert.equal(store.isPractice(), true);
+  assert.deepEqual(store.get().savedShops.map((s) => s.name), ['Lakshmi Bakery', 'Sharma Medicals']);
+  assert.equal(store.get().profile.lang, 'ml', 'practice keeps the person\'s own look and language');
+  store.saveShop({ name: 'Practice Shop', vpa: 'p@ybl' });
+  store.updateProfile({ textScale: 1 });
+  store.addHistory({ name: 'Lakshmi Bakery', vpa: 'lakshmibakery@okaxis', amount: 250, status: 'same' });
+  store.reset(); // not possible from practice
+  assert.equal(store.get().savedShops.length, 3);
+
+  store.exitPractice();
+  assert.equal(store.isPractice(), false);
+  assert.equal(JSON.stringify(store.get()), realBefore, 'nothing done in practice reached the real data');
+});
+
+test('practice has a pretend helper whose PIN works only on the practice guardian', async () => {
+  const seed = await practiceSeed({ profile: {}, user: {} });
+  assert.equal(seed.trusted.length, 1);
+  assert.equal(await checkGuardianPin(PRACTICE_PIN, seed.guardian), true);
+  assert.ok(seed.history.some((h) => h.status === 'different'), 'pretend history includes a stopped fake QR for the report');
+});
+
+test('in practice, links that would leave the phone are recognised and stopped', () => {
+  assert.equal(linkKind('https://wa.me/919000000000?text=hi'), 'px_whatsapp');
+  assert.equal(linkKind('sms:+919000000000?body=hi'), 'px_sms');
+  assert.equal(linkKind('tel:+919000000000'), 'px_phone');
+  assert.equal(linkKind('upi://pay?pa=a@x'), 'px_upi');
+  assert.equal(linkKind('intent://pay?pa=a@x#Intent;scheme=upi;end'), 'px_upi');
+  assert.equal(linkKind('#report'), null);
+});

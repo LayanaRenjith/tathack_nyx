@@ -74,12 +74,14 @@ route('welcome', () => {
         ${Object.entries(LANGS).map(([code, l]) => `<button class="lang-row ${P().lang === code ? 'is-on' : ''}" role="radio" data-lang="${code}" aria-checked="${P().lang === code}" lang="${code}"><span class="grow">${esc(l.label)}</span><span class="lang-check">${icon('check')}</span></button>`).join('')}
       </div>
       <button class="btn big primary wide" id="start" data-next>${esc(tr('get_started'))}</button>
+      <button class="btn wide" id="try-first">${icon('sprout')}<span>${esc(tr('px_try_first'))}</span></button>
       ${canListen ? `<button class="btn big wide voice-start" id="by-voice">${icon('mic')}<span>${esc(tr('voice_setup'))}</span></button>` : ''}
     </section>`, { top: null, title: tr('app_name') });
   say(`${tr('app_name')}. ${tr('tagline')} ${tr('choose_lang')}.`);
   on('[data-lang]', 'click', (e) => { store.updateProfile({ lang: e.currentTarget.dataset.lang }); applySettings(); replace('welcome'); });
   on('#start', 'click', () => go('signup'));
   on('#by-voice', 'click', () => go('voice-setup'));
+  on('#try-first', 'click', () => go('practice'));
 });
 
 // ---------- Set up by voice (for someone who cannot see the screen) ----------
@@ -201,7 +203,7 @@ route('signup', () => {
     const name = document.getElementById('name').value.trim();
     if (!name) { document.getElementById('name').focus(); return; }
     store.update({ user: { name, phone: document.getElementById('phone').value.trim(), helper } });
-    if (helper) go('intro-video', 'needs'); else go('needs'); // a helper setting up for someone is offered the guide
+    go('needs');
   });
 });
 

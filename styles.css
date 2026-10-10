@@ -552,7 +552,11 @@ select.field { appearance: auto; }
 .contrast-sample { background: #000; color: #ffe14d; border-color: #000; }
 .cf-target { font-size: 1.4em; font-weight: 800; text-align: center; }
 .cf-pad { max-width: 360px; margin: 0 auto; width: 100%; }
-/* Guide video */
-.video-frame { border-radius: var(--r-lg); overflow: hidden; background: #111; aspect-ratio: 9 / 16; max-height: 62vh; margin: 0 auto; width: 100%; max-width: 340px; }
-.video-frame video { width: 100%; height: 100%; object-fit: contain; display: block; }
-.video-caption { min-height: 3.2em; font-size: 1.15em; font-weight: 800; text-align: center; }
+
+/* ---------- Practice mode ---------- */
+.practice-bar { position: sticky; top: 0; z-index: 7; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 4px 8px 4px 14px; font-size: max(15px, 0.82em); line-height: 1.2; background: repeating-linear-gradient(135deg, #fdf1e1, #fdf1e1 12px, #fbe6c8 12px, #fbe6c8 24px); color: #7a4300; font-weight: 800; border-bottom: 2px solid var(--c-amber); }
+.practice-bar .ic { color: var(--c-amber); }
+.practice-bar .btn { min-height: 44px; padding: 4px 12px; border-color: var(--c-amber); flex: none; }
+body.in-practice .appbar { top: 52px; }
+.practice-sim { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-md); border: 2px dashed var(--c-amber); background: var(--tint-amber); }
+.practice-qrs .btn { justify-content: flex-start; }

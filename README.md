@@ -68,13 +68,17 @@ Each scan gives **one** signal, from the checked result, never from camera frame
 
 Vibration, sounds, spoken guidance and screen flashes are separate switches in Easy settings. **Silent mode** turns off speech and sounds without touching any other setting, and shows what would have been said as one line of text. Warnings are always on screen, whatever is switched off.
 
+## Practice without consequences
+
+**Practice mode** (from the welcome screen, home, Profile or Easy settings) runs the whole app on pretend data:
+- pretend shops and pretend QR codes: saved shop, fake sticker, new shops, refund trick, website;
+- a pretend helper you can play yourself (Accept / Refuse), plus pretend history for the monthly report.
+
+Nothing can leave the phone. No payment app opens; the last step says "Practice: nothing was paid", and WhatsApp, SMS and call links are stopped with a note. The real shops, helper, history and settings are not read or written until you exit, and the app always starts in real mode. An amber "Practice · no real money" bar stays on every screen with an Exit button.
+
 ## Find what feels comfortable (optional)
 
 A short try-out, offered at setup and in Easy settings: pick the easiest button and text size, how you want to be guided (shown, spoken or both), which alerts you want (try sound, vibration and flash first, only when you tap), and a few sample taps. It suggests settings, shows a summary you can edit, and changes nothing until you confirm. It never diagnoses anything or says pass or fail. The quick setup is still there.
-
-## 1-minute guide
-
-`media/sahaaya-guide.webm` is an 80-second recording of the real app (scan, saved shop, amount, final check, the PIN staying in the UPI app, a new shop, the helper, a swapped sticker, and Easy settings), with captions in all four languages (`media/guide.*.vtt`). It is offered when a family member sets Sahaaya up, and can be replayed from Easy settings. There is no sound track: "Read captions aloud" uses the phone's own voice. It never autoplays, it can be skipped, and it is saved for offline use the first time it plays (it is not part of the install). The on-screen app text in the recording is English; the captions follow the chosen language.
 
 ## No helper? Sahaaya still protects
 
@@ -144,8 +148,7 @@ src/voice-practice.js    Practise voice commands without paying
 src/feedback.js          One feedback decision per scan (vibration, sound, flash) with cooldown
 src/approval-state.js    Helper request states: pending, approved, rejected, expired
 src/comfort.js, comfort-screen.js  "Find what feels comfortable" try-out
-src/intro-video.js       The optional 1-minute guide player
-media/                   Guide video, poster and captions
+src/practice.js, practice-core.js  Practice mode: pretend shops and helper, nothing paid or sent
 src/spoken.js            Amounts, yes/no and phrase matching in Malayalam, English, Hindi, Tamil
 src/commands.js          Voice commands in four languages
 src/auth.js              Fingerprint/face (WebAuthn) and 4-digit code lock

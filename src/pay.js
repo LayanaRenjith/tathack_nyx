@@ -14,7 +14,7 @@ import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, listenAll, canListen, BUZZ, vibrate, speak } from './speech.js';
 import { scanOutcome } from './feedback.js';
-import { requestLink } from './guardian.js';
+import { requestLink, approvalCode } from './guardian.js';
 import { newApproval, stateOf, markSent, receiveCode, receivePin, receiveDecline, REQ } from './approval-state.js';
 import { newChannel, listenForAnswer } from './relay.js';
 import { normalisePhone } from './family.js';
@@ -25,6 +25,7 @@ import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setC
 
 const RESULT_ICON = { ok: 'check', caution: 'info', danger: 'stop' };
 const money = (n) => formatRupees(n);
+const PX_QR = ['px_qr_saved', 'px_qr_swapped', 'px_qr_new', 'px_qr_new2', 'px_qr_refund', 'px_qr_web'];
 const appName = () => (P().payApp === 'any' ? tr('any_app') : PAY_APPS[P().payApp].label);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,12 +57,13 @@ function scannerHtml() {
     <div class="meter" role="meter" aria-label="QR" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="meter"></span></div>
     <p class="readable muted center">${esc(tr('point_camera'))}</p>
     <p id="cam-error" class="note warn-note" hidden>${icon('info')}<span>${esc(tr('camera_error'))}</span></p>
-    <details class="dev" id="dev">
-      <summary>${esc(tr('test_mode'))}</summary>
-      <div class="stack tight">${DEMO_QRS.map((d, i) => `<button class="btn small wide left" data-demo="${i}">${esc(d.label)}</button>`).join('')}</div>
-      <label for="qrtext">${esc(tr('paste_qr'))}</label>
+    ${store.isPractice() ? `<p class="note info-note">${icon('sprout')}<span>${esc(tr('px_tip_scan'))}</span></p>` : ''}
+    <details class="dev ${store.isPractice() ? 'needed practice-qrs' : ''}" id="dev" ${store.isPractice() ? 'open' : ''}>
+      <summary>${esc(store.isPractice() ? tr('px_scenarios') : tr('test_mode'))}</summary>
+      <div class="stack tight">${DEMO_QRS.map((d, i) => `<button class="btn ${store.isPractice() ? '' : 'small'} wide left" data-demo="${i}">${esc(store.isPractice() ? tr(PX_QR[i]) : d.label)}</button>`).join('')}</div>
+      ${store.isPractice() ? '' : `<label for="qrtext">${esc(tr('paste_qr'))}</label>
       <textarea id="qrtext" class="field" rows="2" placeholder="upi://pay?pa=...&pn=..."></textarea>
-      <button class="btn small" id="usetext">${esc(tr('next'))}</button>
+      <button class="btn small" id="usetext">${esc(tr('next'))}</button>`}
     </details>`;
 }
 
@@ -76,7 +78,7 @@ function wireScanner(onQr) {
     onGuidance: (s) => { meter.style.width = `${Math.round(s * 100)}%`; meter.parentElement.setAttribute('aria-valuenow', String(Math.round(s * 100))); },
     onResult: once,
   }).then((s) => { stop = s; if (done) s(); }).catch(() => {
-    document.getElementById('cam-error').hidden = false;
+    if (!store.isPractice()) document.getElementById('cam-error').hidden = false; // practice already points at the pretend codes
     document.getElementById('dev').open = true;
     document.getElementById('dev').classList.add('needed');
   });
@@ -260,7 +262,7 @@ route('result', (qr) => {
   // A recipient mismatch the user wants to pay anyway always needs the helper (never saved as the shop).
   const needMismatch = Boolean(check.status === STATUS.DIFFERENT && person && guardian);
   let req = newApproval();
-  const channel = P().instantReplies !== false ? newChannel() : ''; // instant replies are optional (Settings)
+  const channel = P().instantReplies !== false && !store.isPractice() ? newChannel() : ''; // instant replies are optional (Settings)
   let stopListening = () => {};
   let expiryTimer = null;
   const reason = () => (needNew ? 'new' : needMismatch ? 'mismatch' : limit ? 'limit' : null);
@@ -409,8 +411,25 @@ route('result', (qr) => {
             <button class="btn" id="g-pin-ok">${esc(tr('g_check'))}</button>
           </div>
         </details>
+        ${store.isPractice() ? `
+        <div class="practice-sim">
+          <p class="hint">${icon('sprout')} ${esc(tr('px_sim_note', { name: person.name }))}</p>
+          <div class="row tight-row">
+            <button class="btn wide ghost-danger" id="sim-no">${esc(tr('px_sim_decline', { name: person.name }))}</button>
+            <button class="btn wide primary" id="sim-ok">${esc(tr('px_sim_accept', { name: person.name }))}</button>
+          </div>
+        </div>` : ''}
         <button class="btn ghost wide" id="g-cancel">${esc(tr('confirm_no'))}</button>` : `<p class="hint">${esc(tr('g_amount_first'))}</p>`}`;
     if (!amount) return;
+    // Practice: the user can play the helper. The code is made exactly as the real helper's phone would.
+    familyBox.querySelector('#sim-ok')?.addEventListener('click', async () => {
+      req = markSent(req);
+      const code = await approvalCode(guardian.key, { id: req.id, ...payment() });
+      const box = familyBox.querySelector('#g-code');
+      if (box) box.value = code;
+      await tryCode(code);
+    });
+    familyBox.querySelector('#sim-no')?.addEventListener('click', () => { req = receiveDecline(markSent(req)); alertUser(BUZZ.danger); showFamily(); refreshButton(); announce(tr('g_declined', { name: person.name }), { force: true }); });
     familyBox.querySelector('#wa').addEventListener('click', sent);
     familyBox.querySelector('#sms').addEventListener('click', sent);
     familyBox.querySelector('#copy').addEventListener('click', async () => {
@@ -657,6 +676,11 @@ function reviewMessage() {
 }
 
 function handOff(qr, check, amount) {
+  if (store.isPractice()) { // practice: never build or open a payment link
+    store.addHistory({ name: check.shopName, vpa: qr.payeeVpa, amount, status: check.status });
+    go('practice-done', check.shopName, money(amount), appName());
+    return;
+  }
   const link = appLink(buildUpiLink({ payeeVpa: qr.payeeVpa, payeeName: qr.payeeName, amount, note: qr.note }), P().payApp);
   store.addHistory({ name: check.shopName, vpa: qr.payeeVpa, amount, status: check.status });
   const app = appName();

@@ -15,7 +15,7 @@ import './report-screen.js';
 import './approve.js';
 import './voice-practice.js';
 import './comfort-screen.js';
-import './intro-video.js';
+import './practice.js';
 
 function adjust(patch) { store.updateProfile(patch); applySettings(); }
 const sayIt = (text) => (speaks(P()) ? speak(text) : announce(text, { force: true }));
@@ -65,6 +65,7 @@ onGlobalCommand(async (cmd, alts) => {
     case 'stop': stopSpeaking(); break;
     case 'cancel': await sayIt(tr('hf_cancelled')); goHome(); break;
     case 'practice': go('voice-practice'); break;
+    case 'simulate': go('practice'); break;
     case 'payShop': {
       // "Pay Lakshmi Bakery two fifty": a saved shop, so its account is already known. No QR needed.
       const shop = findShopBySpeech(alts, s.savedShops);

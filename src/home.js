@@ -86,6 +86,7 @@ route('home', () => {
         </button>
         <p class="scan-sub" id="pay-sub">${icon('shield')}<span>${esc(tr('tile_pay_sub'))}</span></p>
       </div>
+      ${!store.isPractice() && !s.history.length ? `<button class="notice tone-amber" id="try-practice">${icon('sprout')}<span class="grow"><strong>${esc(tr('px_offer'))}</strong><small>${esc(tr('px_offer_sub'))}</small></span>${icon('chevron')}</button>` : ''}
       ${pending ? `<button class="notice tone-pink" id="pending">${icon('chart')}<span class="grow"><strong>${esc(tr('report_ready', { month: new Date(pending.year, pending.month, 1).toLocaleString(P().lang === 'en' ? 'en-IN' : `${P().lang}-IN`, { month: 'long' }) }))}</strong><small>${esc(person ? tr('report_send', { name: person.name }) : formatRupees(pending.total))}</small></span>${icon('chevron')}</button>` : ''}
       <div class="tiles">
         ${tile('shops', 'green', 'store', tr('tile_shops'), tr('tile_shops_sub', { n: s.savedShops.length }))}
@@ -103,6 +104,7 @@ route('home', () => {
   on('#family', 'click', () => go('trusted'));
   on('#report', 'click', () => go('report'));
   on('#pending', 'click', () => go('report', -1));
+  on('#try-practice', 'click', () => go('practice'));
   on('#call', 'click', () => { window.location.href = `tel:+${normalisePhone(person.phone)}`; });
   on('#access', 'click', () => go('settings'));
   on('#me', 'click', () => go('profile'));
@@ -228,6 +230,7 @@ route('profile', () => {
         ${row('r-family', 'purple', 'family', tr('tile_family'), s.trusted[0]?.name || '')}
         ${row('r-shops', 'teal', 'store', tr('tile_shops'), String(s.savedShops.length))}
         ${row('r-report', 'pink', 'chart', tr('report_title'), '')}
+        ${row('r-sim', 'amber', 'sprout', tr('px_offer'), '')}
         ${row('r-practice', 'green', 'mic', tr('practice_title'), '')}
         ${row('r-access', 'amber', 'sliders', tr('tile_settings'), '')}
       </div>
@@ -242,7 +245,7 @@ route('profile', () => {
       <div class="stack tight">
         ${s.lock.type !== 'none' ? `<button class="btn wide" id="lock-now">${icon('lock')}<span>${esc(tr('lock_now'))}</span></button>` : ''}
         <button class="btn wide" id="samples">${esc(tr('sample_shops'))}</button>
-        <button class="btn wide danger-outline" id="reset">${esc(tr('reset_all'))}</button>
+        ${store.isPractice() ? '' : `<button class="btn wide danger-outline" id="reset">${esc(tr('reset_all'))}</button>`}
       </div>
     </section>`, { top: 'back', nav: 'profile', title: tr('profile') });
   on('#save-me', 'click', () => { store.update({ user: { ...s.user, name: document.getElementById('name').value.trim() || s.user.name, phone: document.getElementById('phone').value.trim() } }); announce(tr('saved')); rerender(); });
@@ -254,6 +257,7 @@ route('profile', () => {
   on('#r-access', 'click', () => go('settings'));
   on('#r-report', 'click', () => go('report'));
   on('#r-practice', 'click', () => go('voice-practice'));
+  on('#r-sim', 'click', () => (store.isPractice() ? null : go('practice')));
   on('#r-voice', 'click', async () => {
     if (!p.voiceOnly && (await ensureMic()) !== 'ok') { announce(tr('mic_blocked'), { force: true }); showToast(tr('mic_blocked')); return; }
     store.updateProfile({ voiceOnly: !p.voiceOnly, voice: true, handsFree: true, screenReader: false }); applySettings(); rerender();
@@ -307,7 +311,7 @@ route('settings', () => {
       </div>
       <div class="stack tight">
         <button class="btn wide" id="comfort">${icon('sliders')}<span>${esc(tr('cf_title'))}</span></button>
-        <button class="btn wide" id="video">${icon('eye')}<span>${esc(tr('vid_offer'))}</span></button>
+        ${store.isPractice() ? '' : `<button class="btn wide" id="sim">${icon('sprout')}<span>${esc(tr('px_offer'))}</span></button>`}
       </div>
       ${settingsControls(p)}
       <button class="btn wide" id="redo">${esc(tr('redo_setup'))}</button>
@@ -321,5 +325,5 @@ route('settings', () => {
   on('#voice-practice', 'click', () => go('voice-practice'));
   on('#redo', 'click', () => go('needs'));
   on('#comfort', 'click', () => go('comfort', 'back'));
-  on('#video', 'click', () => go('intro-video', 'back'));
+  on('#sim', 'click', () => go('practice'));
 });

@@ -37,7 +37,33 @@ function read() {
 
 let state = read();
 
+// ---------- Practice mode ----------
+// While practising, the app runs on a separate, throw-away copy: pretend shops, a pretend helper,
+// pretend history. The real data is not read or written until practice ends, and practice is never
+// remembered across a restart, so the app always starts in real mode.
+let practice = null; // the practice state while practising, else null
+let realState = null;
+
+export const isPractice = () => practice !== null;
+
+export function enterPractice(seed) {
+  if (practice) return state;
+  realState = state;
+  practice = seed;
+  state = seed;
+  return state;
+}
+
+export function exitPractice() {
+  if (!practice) return state;
+  practice = null;
+  state = realState || read();
+  realState = null;
+  return state;
+}
+
 function write() {
+  if (practice) { practice = state; return; } // never touches real storage
   const json = JSON.stringify(state);
   try { globalThis.localStorage.setItem(KEY, json); } catch { memory = json; }
 }
@@ -84,6 +110,7 @@ export function addHistory({ name, vpa, amount, status }) {
 }
 
 export function reset() {
+  if (practice) return state; // "clear all data" is not possible from practice
   state = fresh();
   write();
   return state;

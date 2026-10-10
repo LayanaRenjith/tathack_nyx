@@ -83,11 +83,14 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   const vm = voiceDriven(P()) && canListen;
   autoListenPending = vm;
   const topHtml = top === 'back' ? backBar(title) : top === 'brand' ? brandBar() : '';
-  root().innerHTML = `${topHtml}${step ? steps(step) : ''}<div class="content">${html}</div>${vm ? voiceBar() : nav ? navBar(nav) : ''}`;
+  const practiceBar = store.isPractice()
+    ? `<div class="practice-bar" role="status">${icon('sprout')}<span class="grow">${esc(tr('px_banner'))}</span><button class="btn small" data-bar="exit-practice">${esc(tr('px_exit'))}</button></div>` : '';
+  root().innerHTML = `${practiceBar}${topHtml}${step ? steps(step) : ''}<div class="content">${html}</div>${vm ? voiceBar() : nav ? navBar(nav) : ''}`;
+  document.body.classList.toggle('in-practice', store.isPractice());
   document.body.classList.toggle('has-nav', Boolean(nav) || vm);
   const h = root().querySelector('.content h1, .content h2');
   if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
-  document.title = title ? `${title} · ${tr('app_name')}` : tr('app_name');
+  document.title = title && title !== tr('app_name') ? `${title} · ${tr('app_name')}` : tr('app_name');
   window.scrollTo(0, 0);
   clearInterval(pointerTimer);
   document.getElementById('pointer-hand')?.remove();
@@ -98,6 +101,7 @@ export function render(html, { title = '', top = 'back', nav = null, step = 0 } 
   }
   on('[data-bar="back"]', 'click', back);
   on('[data-bar="size"]', 'click', cycleTextSize);
+  on('[data-bar="exit-practice"]', 'click', () => window.dispatchEvent(new Event('sahaaya:exit-practice')));
   root().querySelectorAll('[data-bar="voice"]').forEach((b) => wireHoldToTalk(b, () => window.dispatchEvent(new Event('sahaaya:voice'))));
   root().querySelectorAll('.voice-bar').forEach((b) => wireHoldToTalk(b, () => voiceTurn()));
   const hint = root().querySelector('.voice-hint');
