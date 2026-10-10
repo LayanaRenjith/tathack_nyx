@@ -131,6 +131,7 @@ route('history', () => {
   render(`
     <section class="screen">
       <h1>${esc(tr('tile_history'))}</h1>
+      ${h.length ? `<p class="hint">${esc(tr('hist_note'))}</p>` : ''}
       <button class="notice tone-pink" id="to-report">${icon('chart')}<span class="grow"><strong>${esc(tr('report_title'))}</strong><small>${esc(tr('tile_report_sub'))}</small></span>${icon('chevron')}</button>
       ${h.length ? `<ul class="history-list">${rows}</ul>` : empty('history', tr('history_empty'))}
     </section>`, { top: 'back', nav: 'history', title: tr('tile_history') });
@@ -304,6 +305,10 @@ route('settings', () => {
         <div class="row"><button class="btn wide" id="voice-test">${icon('speaker')}<span>${esc(tr('voice_test'))}</span></button>
         <button class="btn wide" id="voice-practice">${icon('mic')}<span>${esc(tr('practice_title'))}</span></button></div>
       </div>
+      <div class="stack tight">
+        <button class="btn wide" id="comfort">${icon('sliders')}<span>${esc(tr('cf_title'))}</span></button>
+        <button class="btn wide" id="video">${icon('eye')}<span>${esc(tr('vid_offer'))}</span></button>
+      </div>
       ${settingsControls(p)}
       <button class="btn wide" id="redo">${esc(tr('redo_setup'))}</button>
     </section>`, { title: tr('tile_settings') });
@@ -315,4 +320,6 @@ route('settings', () => {
   on('#voice-test', 'click', () => speak(tr('voice_sample', { name: S().user.name || '' })));
   on('#voice-practice', 'click', () => go('voice-practice'));
   on('#redo', 'click', () => go('needs'));
+  on('#comfort', 'click', () => go('comfort', 'back'));
+  on('#video', 'click', () => go('intro-video', 'back'));
 });

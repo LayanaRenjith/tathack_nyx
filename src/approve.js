@@ -34,7 +34,7 @@ route('approve', (hash) => {
           <div><dt>${esc(tx('confirm_to'))}</dt><dd>${esc(req.name || req.vpa)}</dd></div>
           <div><dt>${esc(tx('confirm_account'))}</dt><dd class="vpa">${esc(req.vpa)}</dd></div>
         </dl>
-        <p class="note warn-note">${icon('info')}<span>${esc(tx(req.reason === 'new' ? 'ap_new' : 'ap_limit'))} ${esc(tx('ap_tip'))}</span></p>
+        <p class="note warn-note">${icon('info')}<span>${esc(tx(req.reason === 'new' ? 'ap_new' : req.reason === 'mismatch' ? 'ap_mismatch' : 'ap_limit'))} ${esc(tx('ap_tip'))}</span></p>
       </div>
       ${req.phone ? `<a class="btn wide" href="tel:+${esc(normalisePhone(req.phone))}">${icon('call')}<span>${esc(tx('ap_call', { user }))}</span></a>` : ''}
       <div class="card stack tight" id="pin-card">

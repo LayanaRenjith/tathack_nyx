@@ -13,16 +13,17 @@ import { speaks, voiceDriven, listenLangFor } from './profile.js';
 import { mountKeypad } from './keypad.js';
 import { startScanner } from './scanner.js';
 import { listenOnce, listenAll, canListen, BUZZ, vibrate, speak } from './speech.js';
-import { newRequestId, checkApproval, checkGuardianPin, requestLink } from './guardian.js';
+import { scanOutcome } from './feedback.js';
+import { requestLink } from './guardian.js';
+import { newApproval, stateOf, markSent, receiveCode, receivePin, receiveDecline, REQ } from './approval-state.js';
 import { newChannel, listenForAnswer } from './relay.js';
 import { normalisePhone } from './family.js';
 import { parseCommand } from './commands.js';
 import { DEMO_QRS } from './demo-codes.js';
 import { icon } from './icons.js';
-import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setCleanup, readScreen, setVoice, screenId, voiceTurn, explainMicProblem } from './ui.js';
+import { route, go, goHome, render, on, esc, tr, P, S, announce, alertUser, setCleanup, readScreen, setVoice, screenId, voiceTurn, explainMicProblem, scanFeedback, showToast } from './ui.js';
 
 const RESULT_ICON = { ok: 'check', caution: 'info', danger: 'stop' };
-const BUZZ_FOR = { ok: BUZZ.ok, caution: BUZZ.caution, danger: BUZZ.danger };
 const money = (n) => formatRupees(n);
 const appName = () => (P().payApp === 'any' ? tr('any_app') : PAY_APPS[P().payApp].label);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,8 +88,9 @@ function wireScanner(onQr) {
 }
 
 function notPayment(qr) {
-  alertUser(BUZZ.danger);
-  const msg = qr.reason === 'web_link' ? tr('web_link') : tr('not_upi');
+  const outcome = scanOutcome(qr, null);
+  scanFeedback(outcome, qr.raw || '');
+  const msg = qr.reason === 'web_link' ? tr('web_link') : qr.reason === 'no_payee' ? tr('qr_unreadable') : tr('not_upi');
   render(`
     <section class="screen">
       <div class="result-card danger" role="alert"><span class="result-icon">${icon('stop')}</span><div><p class="result-title readable">${esc(msg)}</p></div></div>
@@ -120,9 +122,11 @@ route('result', (qr) => {
   else if (check.status === STATUS.DIFFERENT) head = { title: tr('r_swapped', { shop: check.shopName }), sub: tr('r_swapped_sub', { shop: check.shopName }) };
   else head = { title: tr('r_new'), sub: qr.payeeName ? tr('r_new_sub_name', { name: qr.payeeName }) : tr('r_new_sub_noname') };
   const extra = check.findings.filter((f) => ['receive_money_trick', 'not_a_payment_qr'].includes(f.code)).map((f) => tr(`f_${f.code}`));
+  if (check.status === STATUS.NEW && person) extra.push(tr('g_helper_can'));
   const danger = check.level === LEVEL.DANGER;
   // No helper to ask: a short safety check stands in for them on a new shop.
-  const solo = check.status === STATUS.NEW && !person && !danger;
+  // A mismatch or suspicious code the user still wants to pay (after "I asked the shop") gets the same check.
+  const solo = !person && (check.status === STATUS.NEW || check.status === STATUS.DIFFERENT || danger);
   const soloQs = [
     { key: 'solo_q_here', want: 'yes' },
     { key: 'solo_q_call', want: 'no' },
@@ -153,7 +157,7 @@ route('result', (qr) => {
         </div>` : ''}
       ${danger ? `<a class="btn wide report-fraud" href="tel:1930">${icon('call')}<span>${esc(tr('call_1930'))}</span></a>` : ''}
       ${solo ? `
-        <div class="solo-card" id="solo">
+        <div class="solo-card" id="solo" ${danger ? 'hidden' : ''}>
           <p class="solo-title">${icon('shield')}<span>${esc(tr('solo_title'))}</span></p>
           <p class="solo-q readable" id="solo-q"></p>
           <div class="row"><button class="btn big wide" data-solo="no">${icon('close')}<span>${esc(tr('no'))}</span></button><button class="btn big wide primary" data-solo="yes" data-next>${icon('check')}<span>${esc(tr('yes'))}</span></button></div>
@@ -165,7 +169,7 @@ route('result', (qr) => {
           <a class="btn big wide primary" href="tel:1930">${icon('call')}<span>${esc(tr('call_1930'))}</span></a>
           <button class="btn wide" id="solo-again">${icon('scan')}<span>${esc(tr('scan_again'))}</span></button>
         </div>` : ''}
-      <div id="pay-area" ${danger || solo ? 'hidden' : ''}>
+      <div id="pay-area" hidden>
         <div class="amount-box">
           <span class="label">${esc(tr('amount_q'))}</span>
           <output id="amount" class="amount" aria-live="polite">₹0</output>
@@ -180,20 +184,23 @@ route('result', (qr) => {
       </div>
     </section>`, { title: tr('step_check'), step: danger ? 2 : 3 });
 
-  alertUser(BUZZ_FOR[check.level]);
+  const outcome = scanOutcome(qr, check);
+  scanFeedback(outcome, qr.payeeVpa);
   const spoken = [head.title, head.sub, ...extra];
   const voiceFlow = (P().handsFree || voiceDriven(P())) && canListen;
-  if (solo && !voiceFlow) spoken.push(tr('solo_title'), tr(soloQs[0].key, soloQs[0].vars));
+  if (solo && !danger && !voiceFlow) spoken.push(tr('solo_title'), tr(soloQs[0].key, soloQs[0].vars));
   else if (!danger) spoken.push(usual ? tr('usual', { amount: money(usual) }) : '', voiceFlow ? '' : tr('amount_q'));
-  const intro = announce(spoken.filter(Boolean).join('. '), { force: danger });
+  const intro = announce(spoken.filter(Boolean).map((x) => x.replace(/[.।]\s*$/, '')).join('. '), { force: danger });
 
   on('#again', 'click', () => go('scan'));
   on('#read', 'click', readScreen);
   on('#anyway', 'click', () => {
     document.getElementById('danger-actions').hidden = true;
-    document.getElementById('pay-area').hidden = false;
+    if (solo) { document.getElementById('solo').hidden = false; announce(soloAsk()); } // no helper: the safety questions first
+    else document.getElementById('pay-area').hidden = false;
     lockFor(pauseSeconds(LEVEL.DANGER));
   });
+  if (!danger && !solo) document.getElementById('pay-area').hidden = false;
 
   // ----- Safety check for people with no helper -----
   let soloStep = 0;
@@ -250,17 +257,18 @@ route('result', (qr) => {
   // ----- Guardian approval: new shops (and payments over the limit) need the trusted person's code -----
   const guardian = s.guardian?.key ? s.guardian : null;
   const needNew = Boolean(check.status === STATUS.NEW && person && guardian && s.limits.newShops !== false);
-  const reqId = newRequestId();
-  const channel = newChannel();
-  const askedAt = Date.now();
-  let approved = false;
-  let declined = false;
+  // A recipient mismatch the user wants to pay anyway always needs the helper (never saved as the shop).
+  const needMismatch = Boolean(check.status === STATUS.DIFFERENT && person && guardian);
+  let req = newApproval();
+  const channel = P().instantReplies !== false ? newChannel() : ''; // instant replies are optional (Settings)
   let stopListening = () => {};
-  const reason = () => (needNew ? 'new' : limit ? 'limit' : null);
-  const request = () => ({ id: reqId, vpa: qr.payeeVpa, amount });
+  let expiryTimer = null;
+  const reason = () => (needNew ? 'new' : needMismatch ? 'mismatch' : limit ? 'limit' : null);
+  const approved = () => stateOf(req) === REQ.APPROVED;
+  const payment = () => ({ vpa: qr.payeeVpa, amount });
 
   const payLabel = () => (hold ? tr('hold_to_pay') : tr('tap_to_pay'));
-  const needsOk = () => Boolean(person && reason() && (!approved || declined) && (guardian ? true : !asked));
+  const needsOk = () => Boolean(person && reason() && !approved() && (guardian ? true : !asked));
   const refreshButton = () => {
     const left = Math.ceil((lockedUntil - Date.now()) / 1000);
     btn.disabled = left > 0 || !amount || needsOk();
@@ -273,10 +281,9 @@ route('result', (qr) => {
     timer = setInterval(() => { refreshButton(); if (Date.now() >= lockedUntil) clearInterval(timer); }, 250);
     refreshButton();
   }
-  setCleanup(() => { clearInterval(timer); stopListening(); });
+  setCleanup(() => { clearInterval(timer); clearInterval(expiryTimer); stopListening(); });
 
-  const approveNow = async (how) => {
-    approved = true;
+  const onApproved = async () => {
     alertUser(BUZZ.ok);
     const card = document.querySelector('.result-card');
     if (card && needNew) {
@@ -289,33 +296,60 @@ route('result', (qr) => {
     showFamily();
     refreshButton();
     await sayAndWait(`${tr('g_ok', { name: person.name })}${needNew ? `. ${tr('g_saved_shop', { shop: check.shopName })}` : ''}`);
-    return how;
+  };
+  const showError = (key) => {
+    const err = familyBox.querySelector('#g-err');
+    if (err) { err.hidden = false; err.textContent = tr(key, { name: person.name }); }
+    alertUser(BUZZ.caution);
+    announce(tr(key, { name: person.name }), { force: true });
   };
   const tryCode = async (code) => {
-    if (await checkApproval(code, guardian, request())) { await approveNow('code'); return true; }
-    const err = familyBox.querySelector('#g-err');
-    if (err) { err.hidden = false; err.textContent = tr('g_bad', { name: person.name }); }
-    alertUser(BUZZ.caution);
-    announce(tr('g_bad', { name: person.name }), { force: true });
+    const { request, result } = await receiveCode(req, code, guardian, payment());
+    req = request;
+    if (result === 'approved') { await onApproved(); return true; }
+    if (result === 'expired') { showFamily(); announce(tr('g_expired', { name: person.name }), { force: true }); return false; }
+    if (result === 'rejected') return false;
+    showError('g_bad');
     return false;
   };
   const askMessage = () => {
     const base = `${location.origin}${location.pathname}`;
-    const link = requestLink(base, { ...request(), name: check.shopName, user: s.user.name, phone: s.user.phone, lang: P().lang, reason: reason(), channel }, guardian);
-    return tr('g_msg', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa, reason: tr(needNew ? 'g_reason_new' : 'g_reason_limit'), link });
+    const link = requestLink(base, { id: req.id, ...payment(), name: check.shopName, user: s.user.name, phone: s.user.phone, lang: P().lang, reason: reason(), channel }, guardian);
+    return tr('g_msg', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa, reason: tr(needNew ? 'g_reason_new' : needMismatch ? 'g_reason_mismatch' : 'g_reason_limit'), link });
+  };
+  const sent = () => {
+    req = markSent(req);
+    clearInterval(expiryTimer);
+    expiryTimer = setInterval(() => { if (stateOf(req) === REQ.EXPIRED) { clearInterval(expiryTimer); showFamily(); refreshButton(); } }, 15000);
+    setTimeout(() => { showFamily(); refreshButton(); }, 300);
+  };
+  const askAgain = () => { req = newApproval(); stopListening(); showFamily(); refreshButton(); };
+
+  const stateLine = (st) => {
+    const map = {
+      pending: ['waiting', 'g_waiting'],
+      approved: ['ok', 'g_ok'],
+      rejected: ['no', 'g_declined'],
+      expired: ['no', 'g_expired'],
+    };
+    const m = map[st];
+    if (!m) return '';
+    const dots = st === 'pending' ? '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>' : '';
+    return `<p class="req-state state-${m[0]}" role="status">${dots}${esc(tr(m[1], { name: person.name }))}</p>`;
   };
 
   const showFamily = () => {
     limit = overLimit(amount, s.limits, s.history);
     if (!reason() || !person) { familyBox.hidden = true; return; }
     familyBox.hidden = false;
-    if (approved) {
+    const st = stateOf(req);
+    if (st === REQ.APPROVED) {
       familyBox.className = 'family-box approved';
       familyBox.innerHTML = `<p class="family-text">${icon('check')}<span>${esc(tr('g_ok', { name: person.name }))}</span></p>`;
       return;
     }
     familyBox.className = 'family-box';
-    const text = needNew ? tr('g_new_shop', { name: person.name })
+    const text = needNew ? tr('g_new_shop', { name: person.name }) : needMismatch ? tr('g_mismatch', { name: person.name })
       : tr(limit.reason === 'payment' ? 'over_payment' : 'over_daily', { limit: money(limit.limit), name: person.name });
     if (!guardian) { // no Guardian PIN set: the older "ask first" nudge
       const msg = tr('family_msg_risky', { user: s.user.name, amount: money(amount), shop: check.shopName, vpa: qr.payeeVpa });
@@ -328,12 +362,37 @@ route('result', (qr) => {
       familyBox.querySelector('#sms').addEventListener('click', mark);
       return;
     }
+    if (st === REQ.REJECTED) {
+      stopListening();
+      familyBox.className = 'family-box declined';
+      familyBox.innerHTML = `<p class="family-text">${icon('stop')}<span>${esc(tr('g_declined', { name: person.name }))}</span></p>
+        <a class="btn wide" href="tel:+${esc(normalisePhone(person.phone))}">${icon('call')}<span>${esc(tr('tile_call', { name: person.name }))}</span></a>
+        <button class="btn wide" id="g-cancel">${icon('close')}<span>${esc(tr('confirm_no'))}</span></button>`;
+      familyBox.querySelector('#g-cancel').addEventListener('click', () => goHome());
+      return;
+    }
+    if (st === REQ.EXPIRED) {
+      stopListening();
+      familyBox.className = 'family-box declined';
+      familyBox.innerHTML = `${stateLine(st)}
+        <button class="btn big wide primary" id="g-again">${icon('whatsapp')}<span>${esc(tr('g_ask_again', { name: person.name }))}</span></button>
+        <button class="btn wide" id="g-cancel">${icon('close')}<span>${esc(tr('confirm_no'))}</span></button>`;
+      familyBox.querySelector('#g-again').addEventListener('click', askAgain);
+      familyBox.querySelector('#g-cancel').addEventListener('click', () => goHome());
+      return;
+    }
+    const msg = amount ? askMessage() : '';
     familyBox.innerHTML = `
       <p class="family-text">${icon('shield')}<span>${esc(text)}</span></p>
       ${amount ? `
-        <a class="btn big wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, askMessage()))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr('g_ask', { name: person.name }))}</span></a>
-        <p class="waiting" aria-live="polite"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>${esc(tr('g_waiting', { name: person.name }))}</p>
-        <details class="here"><summary>${icon('info')} ${esc(tr('g_have_code', { name: person.name }))}</summary>
+        <a class="btn big wide whatsapp" id="wa" href="${esc(whatsappLink(person.phone, msg))}" target="_blank" rel="noopener">${icon('whatsapp')}<span>${esc(tr(st === REQ.PENDING ? 'g_ask_again' : 'g_ask', { name: person.name }))}</span></a>
+        <p class="hint">${esc(tr('g_tap_send'))}</p>
+        <div class="row tight-row">
+          <a class="btn small wide" id="sms" href="${esc(smsLink(person.phone, msg))}">${esc(tr('ask_family_sms'))}</a>
+          <button class="btn small wide" id="copy">${esc(tr('g_copy'))}</button>
+        </div>
+        ${stateLine(st)}
+        <details class="here" ${st === REQ.PENDING ? 'open' : ''}><summary>${icon('info')} ${esc(tr('g_have_code', { name: person.name }))}</summary>
         <label for="g-code">${esc(tr('g_enter_code', { name: person.name }))}</label>
         <div class="code-row">
           <input id="g-code" class="field code-field" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${esc(tr('g_code_ph'))}">
@@ -349,19 +408,21 @@ route('result', (qr) => {
             <input id="g-pin" class="field code-field" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
             <button class="btn" id="g-pin-ok">${esc(tr('g_check'))}</button>
           </div>
-        </details>` : `<p class="hint">${esc(tr('g_amount_first'))}</p>`}`;
-    if (declined) {
-      familyBox.className = 'family-box declined';
-      familyBox.innerHTML = `<p class="family-text">${icon('stop')}<span>${esc(tr('g_declined', { name: person.name }))}</span></p>
-        <a class="btn wide" href="tel:+${esc(normalisePhone(person.phone))}">${icon('call')}<span>${esc(tr('tile_call', { name: person.name }))}</span></a>`;
-      return;
-    }
-    // Instant answer: the helper's Accept unlocks this screen by itself (the WhatsApp code is the backup).
-    if (amount) {
+        </details>
+        <button class="btn ghost wide" id="g-cancel">${esc(tr('confirm_no'))}</button>` : `<p class="hint">${esc(tr('g_amount_first'))}</p>`}`;
+    if (!amount) return;
+    familyBox.querySelector('#wa').addEventListener('click', sent);
+    familyBox.querySelector('#sms').addEventListener('click', sent);
+    familyBox.querySelector('#copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(msg); showToast(tr('g_copied')); sent(); } catch { showToast(tr('g_copy_failed')); }
+    });
+    familyBox.querySelector('#g-cancel').addEventListener('click', () => { announce(tr('hf_cancelled'), { force: true }); goHome(); });
+    // Instant answer through the relay (if switched on); the code typed or said is always available.
+    if (channel) {
       stopListening();
-      stopListening = listenForAnswer(channel, askedAt, async (msg) => {
-        if (msg.a === 'no') { declined = true; alertUser(BUZZ.danger); showFamily(); refreshButton(); announce(tr('g_declined', { name: person.name }), { force: true }); return; }
-        if (msg.code && !approved) { const box = familyBox.querySelector('#g-code'); if (box) box.value = msg.code; await tryCode(msg.code); if (approved && voiceFlow && gen === screenId()) voiceAmount(); }
+      stopListening = listenForAnswer(channel, req.createdAt, async (m) => {
+        if (m.a === 'no') { req = receiveDecline(req); alertUser(BUZZ.danger); showFamily(); refreshButton(); announce(tr('g_declined', { name: person.name }), { force: true }); return; }
+        if (m.code && !approved()) { const box = familyBox.querySelector('#g-code'); if (box) box.value = m.code; await tryCode(m.code); if (approved() && voiceFlow && gen === screenId()) voiceAmount(); }
       });
     }
     const codeEl = familyBox.querySelector('#g-code');
@@ -373,8 +434,9 @@ route('result', (qr) => {
       if (d) { codeEl.value = d.slice(0, 6); tryCode(codeEl.value); } else announce(tr('hf_not_heard'), { force: true });
     });
     familyBox.querySelector('#g-pin-ok')?.addEventListener('click', async () => {
-      if (await checkGuardianPin(familyBox.querySelector('#g-pin').value, guardian)) approveNow('pin');
-      else { const err = familyBox.querySelector('#g-err'); err.hidden = false; err.textContent = tr('ap_wrong_pin'); alertUser(BUZZ.caution); }
+      const { request, result } = await receivePin(req, familyBox.querySelector('#g-pin').value, guardian);
+      req = request;
+      if (result === 'approved') onApproved(); else showError('ap_wrong_pin');
     });
   };
 
@@ -401,13 +463,14 @@ route('result', (qr) => {
       lockFor(30);
     }
     asked = false;
-    approved = false; // an approval is for one amount only
+    if (approved() || stateOf(req) === REQ.PENDING) req = newApproval(); // an approval is for one amount only
     showFamily();
     refreshButton();
   };
 
   const pad = mountKeypad(document.getElementById('keypad'), {
     tolerant: P().tremorSafe,
+    ariaLabels: { back: tr('key_back'), clear: tr('key_clear') },
     onChange: onAmount,
     onKey: (k) => { vibrate(BUZZ.tick); if (speaks(P()) && /^\d$/.test(k)) speak(k); },
   });
@@ -421,7 +484,7 @@ route('result', (qr) => {
     else announce(tr('hf_not_heard'), { force: true });
   });
 
-  const finalCheck = () => (approved && needNew ? { ...check, status: 'approved' } : check);
+  const finalCheck = () => (approved() && needNew ? { ...check, status: 'approved' } : check);
   const pay = () => { if (!btn.disabled) go('confirm', qr, finalCheck(), amount); };
   if (hold) {
     let t = null;
@@ -484,7 +547,7 @@ route('result', (qr) => {
   let waitingForCode = false;
   async function voiceApproval() {
     const q = `${familyBox.querySelector('.family-text')?.textContent || ''} ${tr('vm_guard_help', { name: person.name })}`;
-    for (let round = 0; round < 3 && gen === screenId() && !approved; round += 1) {
+    for (let round = 0; round < 3 && gen === screenId() && !approved(); round += 1) {
       const heard = await ask(q, (h) => Boolean(spokenDigits(h).length >= 6 || parseCommand(h, ['tell', 'send', 'call'])), gen);
       if (!heard || !heard.length) return false;
       const digits = spokenDigits(heard);
@@ -494,7 +557,7 @@ route('result', (qr) => {
       familyBox.querySelector('#wa')?.click();
       return false; // continues when the user comes back to Sahaaya
     }
-    return approved;
+    return approved();
   }
   const onBack = () => {
     if (document.visibilityState !== 'visible' || !waitingForCode || gen !== screenId()) return;
@@ -540,6 +603,7 @@ route('confirm', (qr, check, amount) => {
           <div><dt>${esc(tr('confirm_app'))}</dt><dd>${esc(app)}</dd></div>
         </dl>
       </div>
+      <p class="note info-note">${icon('lock')}<span>${esc(tr('pin_note', { app }))}</span></p>
       <p id="said" class="note warn-note" role="alert" hidden></p>
       ${canListen ? `<p class="hint center">${icon('mic')} ${esc(tr('confirm_say'))}</p>` : ''}
       <div class="row confirm-actions">
@@ -581,11 +645,25 @@ route('confirm', (qr, check, amount) => {
 });
 
 // ---------- Hand-off to the user's UPI app ----------
+/** One short, factual line about what the user just did. The first ever check gets its own line once. */
+function reviewMessage() {
+  const m = S().milestones || {};
+  if (!m.firstCheck) {
+    store.update({ milestones: { ...m, firstCheck: Date.now() } });
+    return tr('praise_first');
+  }
+  const lines = ['praise_1', 'praise_2', 'praise_3'];
+  return tr(lines[(S().history.length || 0) % lines.length]);
+}
+
 function handOff(qr, check, amount) {
   const link = appLink(buildUpiLink({ payeeVpa: qr.payeeVpa, payeeName: qr.payeeName, amount, note: qr.note }), P().payApp);
   store.addHistory({ name: check.shopName, vpa: qr.payeeVpa, amount, status: check.status });
   const app = appName();
   const offerSave = check.status === STATUS.NEW && qr.payeeName;
+  // Calm, honest encouragement: the check is done; the payment itself happens (or not) in the UPI app.
+  // Nothing after a mismatch or a suspicious code, and the first-time line only once, after a real check.
+  const praise = check.status !== STATUS.DIFFERENT && check.level !== LEVEL.DANGER ? reviewMessage() : null;
   render(`
     <section class="screen">
       <div class="result-card info"><span class="result-icon">${icon('rupee')}</span>
@@ -595,6 +673,8 @@ function handOff(qr, check, amount) {
         <p class="amount center">${esc(money(amount))}</p>
         <p class="center muted">${esc(check.shopName)}</p>
       </div>
+      <p class="note info-note">${icon('lock')}<span>${esc(tr('pin_note', { app }))} ${esc(tr('result_in_app', { app }))}</span></p>
+      ${praise ? `<p class="praise">${icon('check')}<span>${esc(praise)}</span></p>` : ''}
       <a class="btn big primary wide" href="${esc(link)}" id="open" data-next>${esc(tr('open_again', { app }))}</a>
       <p class="hint">${esc(tr('fallback', { app }))}</p>
       ${offerSave ? `<button class="btn wide" id="save">${icon('store')}<span>${esc(tr('save_this_shop', { name: qr.payeeName }))}</span></button><p class="hint">${esc(tr('save_note'))}</p>` : ''}

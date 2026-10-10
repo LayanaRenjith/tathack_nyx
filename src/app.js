@@ -14,6 +14,8 @@ import './pay.js';
 import './report-screen.js';
 import './approve.js';
 import './voice-practice.js';
+import './comfort-screen.js';
+import './intro-video.js';
 
 function adjust(patch) { store.updateProfile(patch); applySettings(); }
 const sayIt = (text) => (speaks(P()) ? speak(text) : announce(text, { force: true }));

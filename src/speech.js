@@ -298,6 +298,12 @@ export const BUZZ = {
   danger: [600, 200, 600, 200, 600],
 };
 
+let hapticsOn = true;
+/** The user's vibration setting; every buzz in the app goes through vibrate(). */
+export function setHaptics(on) { hapticsOn = on !== false; }
+export const canVibrate = () => typeof globalThis.navigator?.vibrate === 'function';
+
 export function vibrate(pattern) {
-  try { globalThis.navigator?.vibrate?.(pattern); } catch {}
+  if (!hapticsOn || !pattern) return false;
+  try { return Boolean(globalThis.navigator?.vibrate?.(pattern)); } catch { return false; }
 }

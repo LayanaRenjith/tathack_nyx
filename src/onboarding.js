@@ -201,7 +201,7 @@ route('signup', () => {
     const name = document.getElementById('name').value.trim();
     if (!name) { document.getElementById('name').focus(); return; }
     store.update({ user: { name, phone: document.getElementById('phone').value.trim(), helper } });
-    go('needs');
+    if (helper) go('intro-video', 'needs'); else go('needs'); // a helper setting up for someone is offered the guide
   });
 });
 
@@ -224,6 +224,7 @@ route('needs', () => {
           </button>`).join('')}
       </div>
       <button class="btn big primary wide" id="next" data-next>${esc(tr('next'))}</button>
+      <button class="btn wide" id="comfort">${icon('sliders')}<span>${esc(tr('cf_offer'))}</span></button>
     </section>`, { title: q });
   say(`${q} ${NEEDS.map((n) => tr(`need_${n}`)).join('. ')}`);
   on('[data-need]', 'click', (e) => {
@@ -233,6 +234,7 @@ route('needs', () => {
     vibrate(BUZZ.tick);
   });
   on('#next', 'click', () => { draft.needs = [...picked]; go('choose-app'); });
+  on('#comfort', 'click', () => go('comfort', 'back'));
 });
 
 // ---------- 3. Payment app ----------

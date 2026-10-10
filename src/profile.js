@@ -18,6 +18,9 @@ export const DEFAULT_PROFILE = {
   tremorSafe: false,    // tremor-tolerant keypad, hold-to-pay
   visualAlerts: false,  // flash + vibrate for warnings
   sounds: true,         // chime for safe, firm low tone for danger
+  haptics: true,        // vibration patterns
+  instantReplies: true, // helper's Accept reaches this phone at once through the ntfy.sh relay (code still checked here)
+  silent: false,        // Silent mode: no speech or sounds; instructions shown as text. Leaves all other settings alone.
   payApp: 'any',
   voiceName: '',
   listenLang: 'auto',   // 'auto' = my language, then Indian English on a retry | 'own' | 'en'
@@ -46,24 +49,24 @@ export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) 
   return p;
 }
 
-export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'tremorSafe', 'visualAlerts', 'sounds'];
+export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'tremorSafe', 'visualAlerts', 'sounds', 'haptics', 'silent', 'instantReplies'];
 
 export function activeSettings(p) {
   return TOGGLES.filter((k) => p[k] && p[k] !== DEFAULT_PROFILE[k]); // only what differs from the defaults
 }
 
 /** Does Sahaaya speak out loud? Not when TalkBack is reading for the user. */
-export const speaks = (p) => (p.voice || p.voiceOnly) && !p.screenReader;
+export const speaks = (p) => (p.voice || p.voiceOnly) && !p.screenReader && !p.silent;
 
 /** Full voice control (Sahaaya talks and listens on every screen). */
-export const voiceDriven = (p) => p.voiceOnly && !p.screenReader;
+export const voiceDriven = (p) => p.voiceOnly && !p.screenReader && !p.silent;
 
 export function applyProfile(p, root = globalThis.document?.documentElement) {
   if (!root) return;
   root.lang = p.lang;
   root.style.setProperty('--scale', String(p.textScale));
   const font = p.font === 'dyslexic' ? 'dyslexic' : (p.font === 'easy' || p.dyslexiaFont) ? 'easy' : null;
-  const flags = { huge: p.textScale >= 1.45, contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: font === 'dyslexic' || p.dyslexiaFont, font };
+  const flags = { silent: p.silent, huge: p.textScale >= 1.45, contrast: p.contrast, big: p.bigTargets, simple: p.simple, colourSafe: p.colourSafe, dyslexia: font === 'dyslexic' || p.dyslexiaFont, font };
   for (const [k, v] of Object.entries(flags)) {
     if (v) root.dataset[k] = typeof v === 'string' ? v : 'on'; else delete root.dataset[k];
   }

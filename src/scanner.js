@@ -120,8 +120,7 @@ export async function startScanner(video, { onResult, onGuidance, guidance = tru
       }
       if (hit.text === lastText && score >= 0.25) {
         stop();
-        vibrate(BUZZ.found);
-        onResult?.(hit.text);
+        onResult?.(hit.text); // feedback comes once, from the checked result (see feedback.js)
         return;
       }
       lastText = hit.text;

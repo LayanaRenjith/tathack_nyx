@@ -55,6 +55,27 @@ The decision is always made on the **UPI ID**, never on the name written inside 
 
 **Learns as you use it:** if taps keep missing buttons or repeating, Sahaaya offers bigger buttons. Voice commands work on every screen.
 
+## Feedback you can feel, hear and see
+
+Each scan gives **one** signal, from the checked result, never from camera frames. The same code seen again within a few seconds doesn't buzz twice.
+
+| Result | Vibration | Sound | Screen |
+|---|---|---|---|
+| Saved shop (a match with your saved shop, not a bank check) | one short buzz | rising chime | green card |
+| New shop, not checked | two medium | two even notes | amber card, helper or safety check required |
+| Name matches a saved shop, account doesn't | three long | low firm tone | red card that stays until you act; no way to the UPI app without the helper's approval or the safety questions |
+| Website or other non-payment code / damaged code | five quick | two even notes | "Not a payment" / "damaged code" card |
+
+Vibration, sounds, spoken guidance and screen flashes are separate switches in Easy settings. **Silent mode** turns off speech and sounds without touching any other setting, and shows what would have been said as one line of text. Warnings are always on screen, whatever is switched off.
+
+## Find what feels comfortable (optional)
+
+A short try-out, offered at setup and in Easy settings: pick the easiest button and text size, how you want to be guided (shown, spoken or both), which alerts you want (try sound, vibration and flash first, only when you tap), and a few sample taps. It suggests settings, shows a summary you can edit, and changes nothing until you confirm. It never diagnoses anything or says pass or fail. The quick setup is still there.
+
+## 1-minute guide
+
+`media/sahaaya-guide.webm` is an 80-second recording of the real app (scan, saved shop, amount, final check, the PIN staying in the UPI app, a new shop, the helper, a swapped sticker, and Easy settings), with captions in all four languages (`media/guide.*.vtt`). It is offered when a family member sets Sahaaya up, and can be replayed from Easy settings. There is no sound track: "Read captions aloud" uses the phone's own voice. It never autoplays, it can be skipped, and it is saved for offline use the first time it plays (it is not part of the install). The on-screen app text in the recording is English; the captions follow the chosen language.
+
 ## No helper? Sahaaya still protects
 
 For people with no family member to add:
@@ -67,7 +88,7 @@ For people with no family member to add:
 **New shops need the guardian's OK.** At setup the trusted person picks a 4-digit Guardian PIN (only a salted hash is stored). When the user scans a QR that isn't one of their saved shops, payment is held:
 1. "Ask Ravi to check" sends Ravi a WhatsApp alert with the shop, account and amount.
 2. The link opens Sahaaya on Ravi's phone (no setup needed there). He checks, or calls, enters his Guardian PIN and taps **Accept** or **Don't pay**.
-3. The user's phone unlocks by itself the moment Ravi accepts, or shows "Ravi said: don't pay". The answer travels through ntfy.sh, a free open-source relay, on a random one-time channel. Only the 6-digit approval code goes through it, and that code is checked against the Guardian PIN and only works for this request, this account and this amount. If the relay can't be reached, Ravi sends the code on WhatsApp and the user types or says it. The user never learns the PIN, and the shop is saved for next time.
+3. The user sees the request's state: waiting, approved, "Ravi said: don't pay", or expired after 15 minutes (ask again). The screen reminds them to tap Send in WhatsApp, and offers SMS or copy-the-message if WhatsApp isn't there. Cancel is always available. The user's phone unlocks by itself the moment Ravi accepts, or shows "Ravi said: don't pay". The answer travels through ntfy.sh, a free open-source relay, on a random one-time channel. Only the 6-digit approval code goes through it, and that code is checked against the Guardian PIN and only works for this request, this account and this amount. Instant replies can be switched off in Easy settings. If the relay is off or can't be reached, Ravi sends the code on WhatsApp and the user types or says it. The user never learns the PIN, and the shop is saved for next time.
 If Ravi is sitting next to them, he can type his PIN on the user's phone instead. Payments over the limit use the same approval.
 
 
@@ -120,6 +141,11 @@ src/guardian.js          Guardian PIN, approval codes tied to account and amount
 src/approve.js           The guardian's approval page (opens from the WhatsApp link)
 src/relay.js             Instant Accept / Don't pay answers through ntfy.sh (code still verified on the phone)
 src/voice-practice.js    Practise voice commands without paying
+src/feedback.js          One feedback decision per scan (vibration, sound, flash) with cooldown
+src/approval-state.js    Helper request states: pending, approved, rejected, expired
+src/comfort.js, comfort-screen.js  "Find what feels comfortable" try-out
+src/intro-video.js       The optional 1-minute guide player
+media/                   Guide video, poster and captions
 src/spoken.js            Amounts, yes/no and phrase matching in Malayalam, English, Hindi, Tamil
 src/commands.js          Voice commands in four languages
 src/auth.js              Fingerprint/face (WebAuthn) and 4-digit code lock

@@ -7,7 +7,8 @@ import { applyProfile, speaks, voiceDriven, listenLangFor } from './profile.js';
 import { parseCommand } from './commands.js';
 import { createTapWatcher } from './adapt.js';
 import { icon } from './icons.js';
-import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName, playChime, BUZZ, setPauseMs, setHolding, finishListening, isListening, listenError } from './speech.js';
+import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName, playChime, BUZZ, setPauseMs, setHolding, finishListening, isListening, listenError, setHaptics, canVibrate } from './speech.js';
+import { feedbackPlan, createFeedbackGate } from './feedback.js';
 
 const routes = {};
 const stack = [];
@@ -60,6 +61,7 @@ export function applySettings() {
   setSpeechRate(p.speechRate);
   setVoiceName(p.voiceName);
   setPauseMs(p.slowSpeech ? 2800 : 1800);
+  setHaptics(p.haptics);
 }
 
 /**
@@ -191,7 +193,8 @@ export function announce(text, { force = false } = {}) {
   if (live) { live.textContent = ''; setTimeout(() => { live.textContent = text; }, 30); }
   const p = P();
   const gen = screenGen;
-  const done = (speaks(p) || (force && !p.screenReader)) ? (cancelListening(), speak(text)) : Promise.resolve();
+  const done = (speaks(p) || (force && !p.screenReader && !p.silent)) ? (cancelListening(), speak(text)) : Promise.resolve();
+  if (p.silent) showInstruction(text); // Silent mode: what would have been said is shown, one line at a time
   // Full voice control: once the screen has been read out, start listening for what to do next.
   if (autoListenPending) {
     autoListenPending = false;
@@ -319,10 +322,42 @@ export function readScreen() {
   return speak(voiceDriven(P()) ? `${target.textContent}. ${voiceHelp()}` : target.textContent);
 }
 
+// ---------- Scan feedback: once per scan, from the final result ----------
+const scanGate = createFeedbackGate();
+export function scanFeedback(outcome, text = '') {
+  if (!scanGate(`${outcome}|${text}`)) return null;
+  const plan = feedbackPlan(outcome, P(), { vibrate: canVibrate() });
+  if (plan.vibrate) vibrate(plan.vibrate);
+  if (plan.sound) playChime(plan.sound);
+  if (plan.flash) flashScreen();
+  return plan;
+}
+
+function flashScreen() {
+  document.body.classList.remove('flash');
+  void document.body.offsetWidth;
+  document.body.classList.add('flash');
+}
+
+/** Silent mode: a short instruction strip under the top bar, replaced by the next one. */
+export function showInstruction(text) {
+  const host = root();
+  if (!host || !text) return;
+  let strip = host.querySelector('.instruction');
+  if (!strip) {
+    strip = document.createElement('p');
+    strip.className = 'instruction';
+    const content = host.querySelector('.content');
+    content ? content.before(strip) : host.prepend(strip);
+  }
+  // One clear instruction at a time: the first sentence (the full details stay on the screen itself).
+  strip.textContent = (String(text).match(/^.*?[.!?।](\s|$)/) || [text])[0].trim();
+}
+
 export function alertUser(pattern) {
   vibrate(pattern);
   // Matching sound, so the result is clear without reading or listening to words.
-  if (P().sounds !== false) {
+  if (P().sounds !== false && !P().silent) {
     const kind = pattern === BUZZ.ok ? 'ok' : pattern === BUZZ.danger ? 'danger' : pattern === BUZZ.caution ? 'caution' : pattern === BUZZ.found ? 'found' : null;
     if (kind) playChime(kind);
   }
