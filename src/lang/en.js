@@ -347,4 +347,5 @@ export default {
   slow_speaker: "I speak slowly. Wait longer.",
   hold_hint: "Tip: hold the mic button while you speak and let go when done. Speak close to the phone, in a quiet place.",
   tap_open: "If it doesn’t open, tap anywhere on the screen to open {app}.",
+  opt_sounds: "Sounds for safe and danger",
 };

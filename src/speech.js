@@ -238,18 +238,55 @@ export async function listenOnce(opts = {}) {
   return (await listenAll(opts))[0] || '';
 }
 
-/** A short 880 Hz tone for the hearing check. */
-export function playTone({ ms = 700, hz = 880, volume = 0.25 } = {}) {
+// One shared audio context: phones limit how many can be open, and opening one per beep can clash with the mic.
+let audioCtx = null;
+function ctx() {
   const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
-  if (!Ctx) return Promise.resolve(false);
-  const ctx = new Ctx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.frequency.value = hz;
-  gain.gain.value = volume;
-  osc.connect(gain).connect(ctx.destination);
-  osc.start();
-  return new Promise((resolve) => setTimeout(() => { osc.stop(); ctx.close(); resolve(true); }, ms));
+  if (!Ctx) return null;
+  if (!audioCtx || audioCtx.state === 'closed') audioCtx = new Ctx();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+
+/** One soft note with a gentle start and fade (no click). */
+function note(c, { hz, at = 0, ms = 160, volume = 0.18, type = 'sine' }) {
+  const t0 = c.currentTime + at / 1000;
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(hz, t0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+  osc.connect(gain).connect(c.destination);
+  osc.start(t0);
+  osc.stop(t0 + ms / 1000 + 0.02);
+}
+
+/** A short tone (hearing check, listening beeps, scanner guidance). */
+export function playTone({ ms = 700, hz = 880, volume = 0.25 } = {}) {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  note(c, { hz, ms, volume });
+  return new Promise((resolve) => setTimeout(() => resolve(true), ms));
+}
+
+/**
+ * Sounds that mean something without words, paired with the vibration patterns below:
+ * safe = bright rising two-note chime, caution = two even mid notes, danger = low firm tone, three times.
+ */
+export const CHIMES = {
+  ok: [{ hz: 784, ms: 180 }, { hz: 1175, at: 140, ms: 320 }],
+  found: [{ hz: 988, ms: 90, volume: 0.12 }],
+  caution: [{ hz: 587, ms: 220 }, { hz: 587, at: 300, ms: 220 }],
+  danger: [{ hz: 196, ms: 420, type: 'square', volume: 0.12 }, { hz: 196, at: 560, ms: 420, type: 'square', volume: 0.12 }, { hz: 147, at: 1120, ms: 600, type: 'square', volume: 0.12 }],
+};
+
+export function playChime(kind) {
+  const c = ctx();
+  const notes = CHIMES[kind];
+  if (!c || !notes) return;
+  notes.forEach((n) => note(c, n));
 }
 
 // Distinct vibration patterns, always paired with text and icons, never used alone.

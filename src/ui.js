@@ -7,7 +7,7 @@ import { applyProfile, speaks, voiceDriven, listenLangFor } from './profile.js';
 import { parseCommand } from './commands.js';
 import { createTapWatcher } from './adapt.js';
 import { icon } from './icons.js';
-import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName, setPauseMs, setHolding, finishListening, isListening, listenError } from './speech.js';
+import { speak, stopSpeaking, setSpeechLang, setSpeechRate, speakWithHighlight, vibrate, listenAll, cancelListening, canListen, setVoiceName, playChime, BUZZ, setPauseMs, setHolding, finishListening, isListening, listenError } from './speech.js';
 
 const routes = {};
 const stack = [];
@@ -321,6 +321,11 @@ export function readScreen() {
 
 export function alertUser(pattern) {
   vibrate(pattern);
+  // Matching sound, so the result is clear without reading or listening to words.
+  if (P().sounds !== false) {
+    const kind = pattern === BUZZ.ok ? 'ok' : pattern === BUZZ.danger ? 'danger' : pattern === BUZZ.caution ? 'caution' : pattern === BUZZ.found ? 'found' : null;
+    if (kind) playChime(kind);
+  }
   if (P().visualAlerts) {
     document.body.classList.remove('flash');
     void document.body.offsetWidth;

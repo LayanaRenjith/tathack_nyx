@@ -17,6 +17,7 @@ export const DEFAULT_PROFILE = {
   dyslexiaFont: false,  // easy-reading font, wider spacing, word highlight when read aloud
   tremorSafe: false,    // tremor-tolerant keypad, hold-to-pay
   visualAlerts: false,  // flash + vibrate for warnings
+  sounds: true,         // chime for safe, firm low tone for danger
   payApp: 'any',
   voiceName: '',
   listenLang: 'auto',   // 'auto' = my language, then Indian English on a retry | 'own' | 'en'
@@ -45,10 +46,10 @@ export function deriveProfile({ lang = 'ml', needs = [], payApp = 'any' } = {}) 
   return p;
 }
 
-export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'tremorSafe', 'visualAlerts'];
+export const TOGGLES = ['voiceOnly', 'voice', 'handsFree', 'screenReader', 'openScanner', 'contrast', 'bigTargets', 'simple', 'colourSafe', 'tremorSafe', 'visualAlerts', 'sounds'];
 
 export function activeSettings(p) {
-  return TOGGLES.filter((k) => p[k]);
+  return TOGGLES.filter((k) => p[k] && p[k] !== DEFAULT_PROFILE[k]); // only what differs from the defaults
 }
 
 /** Does Sahaaya speak out loud? Not when TalkBack is reading for the user. */
