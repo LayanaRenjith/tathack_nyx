@@ -602,7 +602,15 @@ function handOff(qr, check, amount) {
     </section>`, { title: tr('step_pay'), step: 4 });
   alertUser(BUZZ.ok);
   setVoice({ own: true });
-  announce(`${tr('opening', { app })}. ${tr('opening_sub', { app })}`, { force: true });
+  // Phones only let a website open another app straight after a tap. After a voice "yes" there was no tap,
+  // so in voice mode any tap on the screen opens the payment app (a blind user can't find a button).
+  const voiceOpen = voiceDriven(P()) || P().handsFree;
+  announce(`${tr('opening', { app })}. ${voiceOpen ? tr('tap_open', { app }) : tr('opening_sub', { app })}`, { force: true });
+  if (voiceOpen) {
+    const anyTap = (e) => { if (e.target.closest('#done, #save')) return; document.removeEventListener('pointerup', anyTap, true); window.location.href = link; };
+    document.addEventListener('pointerup', anyTap, true);
+    setCleanup(() => document.removeEventListener('pointerup', anyTap, true));
+  }
   on('#save', 'click', () => go('name-shop', qr, 'home'));
   on('#done', 'click', goHome);
   const gen = screenId();
